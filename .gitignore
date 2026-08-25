@@ -1,0 +1,30 @@
+# Secretos / configuración local
+.env
+credenciales.json
+
+# Entorno virtual
+venv/
+env/
+.venv/
+
+# Python compilado / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Salidas generadas por el pipeline (se regeneran en cada corrida)
+BD_*.xlsx
+Datos_Validados_*.xlsx
+pipeline_output.log
+*.log
+
+# Logos (binarios propios de cada despliegue, no del código)
+logos/
+
+# Basura de macOS / de este volumen
+.DS_Store
+._*
+
+# Editores
+.vscode/
+.idea/
