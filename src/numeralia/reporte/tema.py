@@ -88,24 +88,6 @@ COLOR_ANIO_PREVIO_TEXTURA = color_textura(COLOR_ANIO_PREVIO)
 COLOR_ANIO_ACTUAL_TEXTURA = color_textura(COLOR_ANIO_ACTUAL)
 
 
-def color_texto(color_hex: str, luminancia_maxima: float = 0.42) -> str:
-    """
-    Oscurece un color solo lo necesario para que sirva de texto sobre blanco.
-
-    Los colores de severidad están pensados como RELLENO: el ámbar #FFB300
-    tiene luminancia 0.71, así que como texto sobre blanco se ve lavado y
-    apenas se lee. Escalar los tres canales por igual oscurece el color sin
-    moverle el tono, porque conserva la proporción entre ellos.
-    """
-    lum = _luminancia(color_hex)
-    if lum <= luminancia_maxima:
-        return color_hex
-    factor = luminancia_maxima / lum
-    crudo = color_hex.lstrip('#')
-    canales = (int(crudo[i:i + 2], 16) for i in (0, 2, 4))
-    return '#' + ''.join(f'{round(c * factor):02x}' for c in canales)
-
-
 def escala_serie(color_hex: str, n: int = 3, luminancia_minima: float = 0.6) -> list:
     """
     ``n`` tonos del mismo color, del más claro al más oscuro.

@@ -1446,7 +1446,6 @@ from numeralia.reporte.tema import (                              # noqa: E402
     ESCALA_ANIO_ACTUAL,
     ESCALA_ANIO_PREVIO,
     PLOTLY_TEMPLATE,
-    color_texto,
     SEVERIDAD_TINTES as _SEVERIDAD_TINTES,
 )
 
@@ -2172,10 +2171,9 @@ def _datos_grafica_episodios(df: pd.DataFrame, col_2025: str, col_2026: str,
 
     return {
         'titulo': titulo,
-        # El color de severidad está pensado como relleno: sobre blanco, como
-        # texto, se ve lavado. color_texto lo oscurece lo justo para que se
-        # lea, sin moverle el tono ni romper el vínculo con la tabla.
-        'color_titulo': color_texto(_SEVERIDAD_TINTES[severidad]),
+        # Los títulos van en el negro de texto del reporte, no en el color de
+        # severidad: esa lectura ya la da la tabla comparativa de al lado.
+        'color_titulo': COLOR_TEXT,
         'anios': ['2025', '2026'],
         # Colores de cada año, en el mismo orden que 'anios'. Las barras y los
         # totales se pintan con estos; la severidad se queda en el título.

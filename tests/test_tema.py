@@ -8,7 +8,6 @@ from numeralia.reporte.tema import (
     ESCALA_ANIO_ACTUAL,
     ESCALA_ANIO_PREVIO,
     _luminancia,
-    color_texto,
     color_textura,
     escala_serie,
     tinte,
@@ -105,43 +104,3 @@ class TestEscalaSerie:
 
     def test_las_dos_escalas_del_reporte_tienen_tres_tonos(self):
         assert len(ESCALA_ANIO_PREVIO) == len(ESCALA_ANIO_ACTUAL) == 3
-
-
-def _contraste_sobre_blanco(color_hex: str) -> float:
-    """Razón de contraste WCAG contra fondo blanco."""
-    crudo = color_hex.lstrip("#")
-    canales = []
-    for i in (0, 2, 4):
-        c = int(crudo[i:i + 2], 16) / 255
-        canales.append(c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4)
-    lum = 0.2126 * canales[0] + 0.7152 * canales[1] + 0.0722 * canales[2]
-    return 1.05 / (lum + 0.05)
-
-
-class TestColorTexto:
-    """Los colores de severidad son de relleno; como texto hay que oscurecerlos."""
-
-    def test_el_ambar_original_no_se_lee_sobre_blanco(self):
-        # 1.79:1, muy por debajo del 4.5:1 que pide WCAG AA. Es la razón de
-        # que este helper exista.
-        assert _contraste_sobre_blanco("#FFB300") < 2.0
-
-    @pytest.mark.parametrize("severidad", ["#FFB300", "#EF6C00"])
-    def test_el_color_ajustado_cumple_wcag_aa(self, severidad):
-        assert _contraste_sobre_blanco(color_texto(severidad)) >= 4.5
-
-    def test_un_color_ya_oscuro_no_se_toca(self):
-        # El morado de Fase III ya contrasta de sobra.
-        assert color_texto("#4B0082") == "#4B0082"
-
-    def test_conserva_el_tono(self):
-        # Oscurecer no debe virar el ámbar hacia otro color: los canales
-        # mantienen su proporción (rojo > verde > azul).
-        crudo = color_texto("#FFB300").lstrip("#")
-        r, g, b = (int(crudo[i:i + 2], 16) for i in (0, 2, 4))
-        assert r > g > b
-        assert b == 0
-
-    def test_alcanza_la_luminancia_pedida(self):
-        for color in ("#FFB300", "#EF6C00", "#ffff00"):
-            assert _luminancia(color_texto(color, 0.42)) == pytest.approx(0.42, abs=0.02)
