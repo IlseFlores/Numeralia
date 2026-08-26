@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "numeralia"
+version = "0.1.0"
+description = "Pipeline y reporte de calidad del aire — SEMADET / SIMAJ"
+requires-python = ">=3.9"
+dependencies = [
+    "gspread==6.2.1",
+    "gspread-dataframe==4.0.0",
+    "google-auth==2.57.0",
+    "pandas==3.0.5",
+    "numpy==2.5.2",
+    "openpyxl==3.1.5",
+    "dash==4.4.1",
+    "plotly==7.0.0",
+    "fpdf2==2.8.8",
+    "kaleido==1.3.0",
+    "python-dotenv==1.2.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

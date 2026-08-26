@@ -28,3 +28,11 @@ logos/
 # Editores
 .vscode/
 .idea/
+
+# Empaquetado (instalación editable)
+*.egg-info/
+build/
+dist/
+
+# Cache de pytest
+.pytest_cache/

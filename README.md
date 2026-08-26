@@ -22,11 +22,17 @@ Desde esta carpeta, crea un entorno virtual e instala los paquetes:
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -e ".[dev]"
 ```
 
 En Windows, activa el entorno con `venv\Scripts\activate` en vez del
 `source venv/bin/activate`.
+
+`pip install -e ".[dev]"` instala las dependencias **y** el paquete
+`numeralia` en modo editable, que es lo que permite hacer
+`from numeralia.dominio import ias` desde cualquier carpeta. El
+`requirements.txt` se conserva para despliegues que solo necesiten las
+dependencias.
 
 ## 2. Crear la cuenta de servicio de Google (una sola vez)
 
@@ -111,6 +117,17 @@ Corre desatendido (sin preguntar nada por consola) — el año se toma del
 sistema o del argumento, así que también puede lanzarse desde una tarea
 programada.
 
+**En Windows**, la consola usa `cp1252` y el script imprime emojis en los
+mensajes de avance, así que arranca con `UnicodeEncodeError` si no fuerzas
+UTF-8:
+
+```bash
+PYTHONUTF8=1 python pipeline_completo.py
+```
+
+En PowerShell es `$env:PYTHONUTF8 = "1"` antes de lanzarlo. En una tarea
+programada, defínelo como variable de entorno del sistema.
+
 Para correr solo el pipeline de datos sin abrir el dashboard, desde una
 sesión de Python:
 
@@ -119,17 +136,61 @@ from pipeline_completo import run_full_pipeline
 acumulado = run_full_pipeline(lanzar_dashboard=False)
 ```
 
+## Correr los tests
+
+```bash
+python -m pytest
+```
+
+En Windows, `PYTHONUTF8=1 python -m pytest`.
+
+Los tests cubren la lógica normativa: cortes del IAS, NowCast, redondeo y
+cumplimiento diario. Hay además dos suites de seguridad del refactor:
+
+- `test_equivalencia.py` compara el paquete contra `pipeline_completo.py`.
+- `test_golden.py` compara contra una salida capturada **antes** de empezar
+  a mover código (`tests/datos/golden_prerefactor.pkl`). Ese archivo debe
+  versionarse: es la referencia de que los números del reporte no cambiaron.
+
 ## Estructura de archivos
+
+El proyecto está a medio migrar de un solo script a un paquete por capas.
+`pipeline_completo.py` sigue siendo el punto de entrada, pero la lógica de
+cálculo y la configuración ya viven en `src/numeralia/`.
 
 ```
 .
-├── pipeline_completo.py   # Script principal
-├── requirements.txt       # Dependencias
-├── .env.example            # Plantilla de configuración
-├── .env                     # Tus credenciales reales (NO se comparte)
-├── logos/                   # Logos del encabezado (opcional)
-└── venv/                    # Entorno virtual
+├── pipeline_completo.py       # Punto de entrada (en migración)
+├── pyproject.toml             # Paquete y dependencias
+├── requirements.txt           # Dependencias sueltas (despliegue)
+├── .env.example               # Plantilla de configuración
+├── .env                       # Tus credenciales reales (NO se comparte)
+├── logos/                     # Logos del encabezado (opcional)
+├── src/numeralia/
+│   ├── config.py              # ÚNICO lugar que lee el entorno
+│   ├── dominio/               # Cálculo puro — no importa gspread ni dash
+│   │   ├── nom172.py          #   rangos del IAS y cumplimiento NOM
+│   │   ├── ias.py             #   índice diario y contaminante dominante
+│   │   ├── nowcast.py         #   NowCast y redondeo comercial
+│   │   └── suficiencia.py     #   criterios de datos suficientes
+│   └── reporte/
+│       └── tema.py            # Paleta, plantilla Plotly, estilos
+├── tests/
+└── venv/
 ```
+
+La regla que sostiene la estructura: **`dominio/` no importa `gspread` ni
+`dash`**. Si cambia la norma, se toca un módulo; si cambia Google o el
+dashboard, no se toca nada del cálculo.
+
+### Qué falta migrar
+
+1. `reporte/` — sacar el PDF de dentro de `build_dash_app` (780 líneas) y
+   partir layout, componentes y callbacks.
+2. `ingesta/` — `autenticar`, `ValidadorCalidadAire`, lectura de Sheets.
+3. `transformacion/` — tabla diaria, numeralia, episodios, alertas.
+4. Eliminar los años escritos a mano: quedan literales `2025`/`2026` en la
+   capa de reporte que deben salir de `Config.anio` y `Config.anio_previo`.
 
 ## Problemas comunes
 

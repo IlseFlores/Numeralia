@@ -150,93 +150,21 @@ def _en_colab() -> bool:
 #
 # Ver .env.example para la plantilla.
 
-def _cargar_dotenv():
-    """
-    Carga el archivo .env si existe. Se busca junto al script y en la carpeta
-    de trabajo. Si python-dotenv no está instalado, se avisa y se sigue: en
-    un servidor las variables suelen venir del sistema y no de un archivo.
-    """
-    try:
-        from dotenv import load_dotenv
-    except ImportError:
-        return
-
-    candidatas = [Path.cwd() / '.env']
-    try:
-        candidatas.insert(0, Path(__file__).parent / '.env')
-    except NameError:
-        pass                      # __file__ no existe al pegar en una celda
-
-    for ruta in candidatas:
-        if ruta.exists():
-            load_dotenv(ruta)
-            print(f"🔧 Configuración cargada de {ruta}")
-            return
-
-
-_cargar_dotenv()
-
-
-# Archivo de credenciales, por si se prefiere ese método en vez del .env.
-ARCHIVO_CREDENCIALES = os.getenv('GOOGLE_CREDENCIALES_ARCHIVO', 'credenciales.json')
-
-# Campos de la cuenta de servicio, tal como vienen en el JSON de Google.
-_CAMPOS_CUENTA_SERVICIO = (
-    'type', 'project_id', 'private_key_id', 'private_key', 'client_email',
-    'client_id', 'auth_uri', 'token_uri', 'auth_provider_x509_cert_url',
-    'client_x509_cert_url', 'universe_domain',
+# La carga del .env, el armado de las credenciales y la busqueda del archivo
+# JSON viven ahora en numeralia.config, que es el unico lugar que lee el
+# entorno. Aqui solo se reexportan los nombres que el resto del archivo usa.
+from numeralia.config import (                                    # noqa: E402
+    CAMPOS_CUENTA_SERVICIO as _CAMPOS_CUENTA_SERVICIO,
+    cargar_dotenv as _cargar_dotenv,
+    credenciales_desde_env as _credenciales_desde_env,
+    ruta_credenciales as _ruta_credenciales,
 )
 
+_ruta_env = _cargar_dotenv()
+if _ruta_env:
+    print(f"[config] Configuracion cargada de {_ruta_env}")
 
-def _credenciales_desde_env() -> Optional[dict]:
-    """
-    Arma el diccionario de la cuenta de servicio a partir del entorno.
-
-    Acepta dos formas:
-      · GOOGLE_CREDENCIALES_JSON con el JSON completo en una sola variable.
-      · Una variable por campo, con prefijo GOOGLE_ (GOOGLE_PRIVATE_KEY…).
-
-    Devuelve None si no hay lo mínimo, para que autenticar() siga con los
-    otros métodos en vez de tronar.
-    """
-    crudo = os.getenv('GOOGLE_CREDENCIALES_JSON')
-    if crudo:
-        try:
-            datos = json.loads(crudo)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"GOOGLE_CREDENCIALES_JSON no es un JSON válido: {e}")
-    else:
-        datos = {}
-        for campo in _CAMPOS_CUENTA_SERVICIO:
-            valor = os.getenv(f'GOOGLE_{campo.upper()}')
-            if valor:
-                datos[campo] = valor
-
-    # Sin estos tres no se puede firmar nada; el resto Google los completa.
-    if not all(datos.get(c) for c in ('private_key', 'client_email', 'token_uri')):
-        return None
-
-    # En un .env la llave privada se escribe en una sola línea con '\n'
-    # literales. Hay que devolverlos a saltos de línea reales o la firma
-    # criptográfica falla con un error poco descriptivo.
-    datos['private_key'] = datos['private_key'].replace('\\n', '\n')
-
-    datos.setdefault('type', 'service_account')
-    return datos
-
-
-def _ruta_credenciales() -> Optional[Path]:
-    """Busca el archivo de credenciales junto al script y en la carpeta actual."""
-    candidatas = [Path.cwd() / ARCHIVO_CREDENCIALES]
-    try:
-        candidatas.insert(0, Path(__file__).parent / ARCHIVO_CREDENCIALES)
-    except NameError:
-        # __file__ no existe cuando el código se pega en una celda.
-        pass
-    for ruta in candidatas:
-        if ruta.exists():
-            return ruta
-    return None
+ARCHIVO_CREDENCIALES = os.getenv('GOOGLE_CREDENCIALES_ARCHIVO', 'credenciales.json')
 
 
 def autenticar() -> gspread.Client:
@@ -703,182 +631,45 @@ class ValidadorCalidadAire:
 # SECCIÓN 2: FUNCIONES DE CÁLCULO IAS / NOM
 # ============================================================================
 
-AZUL_SEMADET    = '#4DC283'
-NARANJA_SEMADET = '#ff8300'
-GRIS_SEMADET    = '#465055'
-
-IAS_COLORS = {
-    "Buena": "#2ecc71", "Aceptable": "#f1c40f",
-    "Mala":  "#e67e22", "Muy mala":  "#e74c3c",
-    "Extremadamente mala": "#8e44ad",
-}
-NOM_COLORS = {"Si": "#2ecc71", "No": "#e74c3c"}
-
-
-def round_half_up(value, ndigits):
-    if value is None or pd.isna(value):
-        return np.nan
-    q = Decimal(str(value)).quantize(Decimal("1." + "0" * ndigits), rounding=ROUND_HALF_UP)
-    return float(q)
-
-
-def rolling_8h(series: pd.Series) -> pd.Series:
-    return series.rolling(8, min_periods=6).mean()
-
-
-def rolling_24h(series: pd.Series) -> pd.Series:
-    return series.rolling(24, min_periods=18).mean()
-
-
-def NowCast(valores, PM):
-    ultimas_3 = valores[-3:] if len(valores) >= 3 else valores
-    if sum(1 for x in ultimas_3 if x is not None) < 2:
-        return None
-
-    valores_inv = valores[::-1]
-    vals_indexados = []
-    hora = 0
-    for v in valores_inv:
-        if v is not None:
-            vals_indexados.append((float(v), hora))
-        hora += 1
-
-    if len(vals_indexados) < 2:
-        return None
-
-    solo_valores = [v for v, _ in vals_indexados]
-    if all(v == 0 for v in solo_valores):
-        return 0
-
-    v_max = max(solo_valores)
-    v_min = min(solo_valores)
-    if v_max == 0:
-        return 0
-
-    tasa   = round_half_up(1 - (v_max - v_min) / v_max, 2)
-    factor = tasa if tasa >= 0.5 else 0.5
-
-    num = den = 0.0
-    for v, i in vals_indexados:
-        peso = factor ** i
-        num += v * peso
-        den += peso
-
-    if den == 0:
-        return None
-
-    pp = round_half_up(num / den, 0)
-    pp = round_half_up(pp * (0.714 if PM == 0 else 0.694), 0)
-    return int(pp)
+# Toda esta seccion vive ahora en numeralia.dominio (calculo puro) y en
+# numeralia.reporte.tema (colores). Se reexporta para no romper el resto del
+# archivo mientras se migra la capa de presentacion.
+from numeralia.dominio.nowcast import (                           # noqa: E402
+    NowCast,
+    rolling_8h,
+    rolling_24h,
+    round_half_up,
+    serie_nowcast_por_estacion,
+)
+from numeralia.dominio.nom172 import (                            # noqa: E402
+    CAT_ORDER,
+    CAT_PUNTAJE,
+    LIMITES_ANUALES,
+    NOM_LIMITS,
+    NOM_PRESETS,
+    RANGOS,
+    clasifica,
+    select_nom_preset,
+)
+from numeralia.dominio.suficiencia import suf_min_yearly          # noqa: E402
+from numeralia.reporte.tema import (                              # noqa: E402
+    AZUL_SEMADET,
+    GRIS_SEMADET,
+    IAS_COLORS,
+    NARANJA_SEMADET,
+    NOM_COLORS,
+)
 
 
-def serie_nowcast_por_estacion(df: pd.DataFrame, pol_col: str, pm_flag: int) -> pd.Series:
-    s   = pd.to_numeric(df[pol_col], errors="coerce")
-    out = []
-    for idx in range(len(s)):
-        ventana = s.iloc[max(0, idx - 11): idx + 1]
-        vals    = [None if pd.isna(v) else float(v) for v in ventana.tolist()]
-        out.append(NowCast(vals, pm_flag))
-    return pd.Series(out, index=df.index, name=f"{pol_col}_NOWCAST")
-
-
-CAT_ORDER   = ["Buena", "Aceptable", "Mala", "Muy mala", "Extremadamente mala"]
-CAT_PUNTAJE = {c: i + 1 for i, c in enumerate(CAT_ORDER)}
-
-RANGOS = {
-    "PM10":  [(None, 45,  "Buena"),  (45,  50,  "Aceptable"),
-              (50,   132, "Mala"),   (132, 213, "Muy mala"),
-              (213,  None,"Extremadamente mala")],
-    "PM2.5": [(None, 15,  "Buena"),  (15,  25,  "Aceptable"),
-              (25,   79,  "Mala"),   (79,  130, "Muy mala"),
-              (130,  None,"Extremadamente mala")],
-    "O3":    [(None, 0.058,"Buena"), (0.058,0.090,"Aceptable"),
-              (0.090,0.135,"Mala"), (0.135,0.175,"Muy mala"),
-              (0.175,None, "Extremadamente mala")],
-    "NO2":   [(None, 0.053,"Buena"), (0.053,0.106,"Aceptable"),
-              (0.106,0.160,"Mala"), (0.160,0.213,"Muy mala"),
-              (0.213,None, "Extremadamente mala")],
-    "SO2":   [(None, 0.035,"Buena"), (0.035,0.075,"Aceptable"),
-              (0.075,0.185,"Mala"), (0.185,0.304,"Muy mala"),
-              (0.304,None, "Extremadamente mala")],
-    "CO":    [(None, 5.00,"Buena"),  (5.00,  9.00,"Aceptable"),
-              (9.00, 12.00,"Mala"), (12.00,16.00,"Muy mala"),
-              (16.00,None, "Extremadamente mala")],
-}
-
-
-def clasifica(valor, pol):
-    if valor is None or pd.isna(valor):
-        return None, None
-    for lo, hi, cat in RANGOS[pol]:
-        if ((lo is None) or (valor > lo)) and ((hi is None) or (valor <= hi)):
-            return cat, CAT_PUNTAJE[cat]
-    return None, None
-
-
-def suf_min_yearly(year: int) -> int:
-    return 275 if calendar.isleap(year) else 274
-
-
-NOM_PRESETS: Dict[int, Dict[str, Dict]] = {
-    2024: {
-        "NOM_LIMITS": {
-            "O3":   {"1H": 0.090, "8H": 0.060},
-            "NO2":  {"1H": 0.106},
-            "SO2":  {"1H": 0.075},
-            "CO":   {"1H": 26.0,  "8H": 9.0},
-            "PM10": {"24H": 60},
-            "PM2.5":{"24H": 33},
-        },
-        "LIMITES_ANUALES": {
-            "O3":    {"tipo": "max_1h",     "lim": 0.090},
-            "NO2":   {"tipo": "prom_24h",   "lim": 0.021},
-            "SO2":   {"tipo": "max_prom24", "lim": 0.040},
-            "CO":    {"tipo": "max_1h",     "lim": 26.0},
-            "PM10":  {"tipo": "prom_24h",   "lim": 28},
-            "PM2.5": {"tipo": "prom_24h",   "lim": 10},
-        },
-    },
-    2026: {
-        "NOM_LIMITS": {
-            "O3":   {"1H": 0.090, "8H": 0.051},
-            "NO2":  {"1H": 0.106},
-            "SO2":  {"1H": 0.075},
-            "CO":   {"1H": 26.0,  "8H": 9.0},
-            "PM10": {"24H": 50},
-            "PM2.5":{"24H": 25},
-        },
-        "LIMITES_ANUALES": {
-            "O3":    {"tipo": "max_1h",     "lim": 0.090},
-            "NO2":   {"tipo": "prom_24h",   "lim": 0.021},
-            "SO2":   {"tipo": "max_prom24", "lim": 0.040},
-            "CO":    {"tipo": "max_1h",     "lim": 26.0},
-            "PM10":  {"tipo": "prom_24h",   "lim": 20},
-            "PM2.5": {"tipo": "prom_24h",   "lim": 10},
-        },
-    },
-}
-
-
-def select_nom_preset(year: int = 2026) -> Tuple[Dict, Dict]:
-    if year not in NOM_PRESETS:
-        raise ValueError("Año no soportado. Use 2024 o 2026.")
-    preset = NOM_PRESETS[year]
-    return preset["NOM_LIMITS"], preset["LIMITES_ANUALES"]
-
-
-# Criterio activo — cambiar 2026 → 2024 si se requiere el 3er año de la NOM
-NOM_LIMITS, LIMITES_ANUALES = select_nom_preset(2026)
-
-
-# ============================================================================
 # SECCIÓN 3: PIPELINE IAS / NOM
 # ============================================================================
 
-_CONTAMINANTES  = ['O3', 'NO', 'NO2', 'NOX', 'SO2', 'CO', 'PM10', 'PM2.5']
-_METEOROLOGIA   = ['IT', 'ET', 'RH', 'WS', 'WD', 'PP', 'ATM', 'RS', 'UVI']
-_INVALID_FLAGS  = ["IF", "IO", "IR", "ND", "VE", "SE", "NE", "IC", "VZ", ""]
-_SUF_MIN_HORAS  = 18
+from numeralia.dominio.suficiencia import (                      # noqa: E402
+    CONTAMINANTES as _CONTAMINANTES,
+    INVALID_FLAGS as _INVALID_FLAGS,
+    METEOROLOGIA as _METEOROLOGIA,
+    SUF_MIN_HORAS as _SUF_MIN_HORAS,
+)
 
 
 def load_and_prepare_db(ruta_excel: str) -> Tuple[pd.DataFrame, int]:
@@ -936,16 +727,9 @@ def append_amg_station(df: pd.DataFrame) -> pd.DataFrame:
               .reset_index(drop=True))
 
 
-def _round_by_nom(value, pol, kind):
-    if pd.isna(value):
-        return np.nan
-    if pol in ["O3", "NO2", "SO2"]:
-        return round_half_up(value, 3)
-    if pol == "CO":
-        return round_half_up(value, 2)
-    if pol in ["PM10", "PM2.5"]:
-        return round_half_up(value, 0)
-    return value
+from numeralia.dominio.nom172 import (                            # noqa: E402
+    redondear_por_nom as _round_by_nom,
+)
 
 
 def _daily_bounds(df_day: pd.DataFrame, pol: str):
@@ -1010,127 +794,13 @@ def rebuild_amg_from_daily(dfd: pd.DataFrame) -> pd.DataFrame:
     return amg[["STATION","FECHA"] + [c for c in amg.columns if c not in ["STATION","FECHA"]]]
 
 
-def compute_nom_daily_flags(dfd: pd.DataFrame) -> pd.DataFrame:
-    dfd = dfd.copy()
-
-    def _cn(cond, valido):
-        return None if not bool(valido) else ("Si" if bool(cond) else "No")
-
-    if {"O3_MAX_1H","O3_MAX_8H"}.issubset(dfd.columns):
-        dfd["NOM_O3_CUMPLE"] = dfd.apply(lambda r: _cn(
-            (not pd.isna(r["O3_MAX_1H"]) and r["O3_MAX_1H"] <= NOM_LIMITS["O3"]["1H"]) and
-            (not pd.isna(r["O3_MAX_8H"]) and r["O3_MAX_8H"] <= NOM_LIMITS["O3"]["8H"]),
-            r.get("O3_SUF_DIARIA", False)), axis=1)
-    if "NO2_MAX_1H" in dfd.columns:
-        dfd["NOM_NO2_CUMPLE"] = dfd.apply(lambda r: _cn(
-            not pd.isna(r["NO2_MAX_1H"]) and r["NO2_MAX_1H"] <= NOM_LIMITS["NO2"]["1H"],
-            r.get("NO2_SUF_DIARIA", False)), axis=1)
-    if "SO2_MAX_1H" in dfd.columns:
-        dfd["NOM_SO2_CUMPLE"] = dfd.apply(lambda r: _cn(
-            not pd.isna(r["SO2_MAX_1H"]) and r["SO2_MAX_1H"] <= NOM_LIMITS["SO2"]["1H"],
-            r.get("SO2_SUF_DIARIA", False)), axis=1)
-    if {"CO_MAX_1H","CO_MAX_8H"}.issubset(dfd.columns):
-        dfd["NOM_CO_CUMPLE"] = dfd.apply(lambda r: _cn(
-            (not pd.isna(r["CO_MAX_1H"]) and r["CO_MAX_1H"] <= NOM_LIMITS["CO"]["1H"]) and
-            (not pd.isna(r["CO_MAX_8H"]) and r["CO_MAX_8H"] <= NOM_LIMITS["CO"]["8H"]),
-            r.get("CO_SUF_DIARIA", False)), axis=1)
-    if "PM10_AVG_24H" in dfd.columns:
-        dfd["NOM_PM10_CUMPLE"] = dfd.apply(lambda r: _cn(
-            not pd.isna(r["PM10_AVG_24H"]) and r["PM10_AVG_24H"] <= NOM_LIMITS["PM10"]["24H"],
-            r.get("PM10_SUF_DIARIA", False)), axis=1)
-    if "PM2.5_AVG_24H" in dfd.columns:
-        dfd["NOM_PM2.5_CUMPLE"] = dfd.apply(lambda r: _cn(
-            not pd.isna(r["PM2.5_AVG_24H"]) and r["PM2.5_AVG_24H"] <= NOM_LIMITS["PM2.5"]["24H"],
-            r.get("PM2.5_SUF_DIARIA", False)), axis=1)
-    if "PM10_NOWCAST_MAX" in dfd.columns:
-        dfd["NOM_PM10_NOWCAST_CUMPLE"] = dfd.apply(lambda r: _cn(
-            not pd.isna(r["PM10_NOWCAST_MAX"]) and r["PM10_NOWCAST_MAX"] <= NOM_LIMITS["PM10"]["24H"],
-            r.get("PM10_SUF_DIARIA", False)), axis=1)
-    if "PM2.5_NOWCAST_MAX" in dfd.columns:
-        dfd["NOM_PM2.5_NOWCAST_CUMPLE"] = dfd.apply(lambda r: _cn(
-            not pd.isna(r["PM2.5_NOWCAST_MAX"]) and r["PM2.5_NOWCAST_MAX"] <= NOM_LIMITS["PM2.5"]["24H"],
-            r.get("PM2.5_SUF_DIARIA", False)), axis=1)
-
-    nom_cols = ["NOM_O3_CUMPLE","NOM_NO2_CUMPLE","NOM_SO2_CUMPLE",
-                "NOM_CO_CUMPLE","NOM_PM10_CUMPLE","NOM_PM2.5_CUMPLE"]
-    dfd["NOM_GLOBAL_CUMPLE"] = dfd.apply(
-        lambda r: (None if not any(r.get(c) in ("Si","No") for c in nom_cols)
-                   else ("Si" if all(r.get(c) == "Si" for c in nom_cols if r.get(c) in ("Si","No"))
-                         else "No")), axis=1)
-    return dfd
-
-
-IAS_SOURCE = {
-    "PM10":"PM10_AVG_24H", "PM2.5":"PM2.5_AVG_24H",
-    "CO":"CO_MAX_8H",      "O3":"O3_MAX_1H",
-    "NO2":"NO2_MAX_1H",    "SO2":"SO2_MAX_1H",
-    "PM10_NOWCAST":"PM10_NOWCAST_MAX",
-    "PM2.5_NOWCAST":"PM2.5_NOWCAST_MAX",
-}
-ORDEN_DOM = ["PM2.5","O3","PM10","NO2","SO2","CO"]
-
-
-def _frac_rango(valor, pol, cat):
-    if valor is None or pd.isna(valor) or cat is None:
-        return 0.0
-    for lo, hi, c in RANGOS.get(pol, []):
-        if c == cat:
-            lo_v = float(lo) if lo is not None else -np.inf
-            hi_v = float(hi) if hi is not None else np.inf
-            if np.isfinite(lo_v) and np.isfinite(hi_v) and (hi_v - lo_v) > 0:
-                return (valor - lo_v) / (hi_v - lo_v)
-            return 1.0 if np.isinf(hi_v) else 0.0
-    return 0.0
-
-
-def compute_ias_daily(dfd: pd.DataFrame) -> pd.DataFrame:
-    dfd = dfd.copy()
-    for pol, vcol in IAS_SOURCE.items():
-        if vcol not in dfd.columns:
-            continue
-        if pol in ("PM10","PM2.5","PM10_NOWCAST","PM2.5_NOWCAST"):
-            vals = dfd[vcol].apply(lambda v: np.nan if pd.isna(v) else float(round_half_up(v, 0)))
-        elif pol == "CO":
-            vals = dfd[vcol].apply(lambda v: np.nan if pd.isna(v) else float(round_half_up(v, 2)))
-        else:
-            vals = dfd[vcol]
-        pol_cls = pol if pol in RANGOS else pol.replace("_NOWCAST","")
-        dfd[[f"IAS_{pol}_CAT_DIA", f"IAS_{pol}_SCORE_DIA"]] = vals.apply(
-            lambda v: pd.Series(clasifica(v, pol_cls)) if not pd.isna(v) else pd.Series([None, None])
-        )
-
-    for pol, vcol in {"PM10":"PM10_AVG_24H","PM2.5":"PM2.5_AVG_24H",
-                      "CO":"CO_MAX_8H","O3":"O3_MAX_1H",
-                      "NO2":"NO2_MAX_1H","SO2":"SO2_MAX_1H"}.items():
-        if vcol in dfd.columns and f"IAS_{pol}_VALOR_DIA" not in dfd.columns:
-            if pol in ("PM10","PM2.5"):
-                dfd[f"IAS_{pol}_VALOR_DIA"] = dfd[vcol].apply(
-                    lambda v: np.nan if pd.isna(v) else float(round_half_up(v, 0)))
-            elif pol == "CO":
-                dfd[f"IAS_{pol}_VALOR_DIA"] = dfd[vcol].apply(
-                    lambda v: np.nan if pd.isna(v) else float(round_half_up(v, 2)))
-            else:
-                dfd[f"IAS_{pol}_VALOR_DIA"] = dfd[vcol]
-
-    def _dom(row):
-        cand = []
-        for pol in ORDEN_DOM:
-            sc  = row.get(f"IAS_{pol}_SCORE_DIA", np.nan)
-            val = row.get(f"IAS_{pol}_VALOR_DIA",  np.nan)
-            cat = row.get(f"IAS_{pol}_CAT_DIA",    None)
-            if pd.isna(sc):
-                continue
-            cand.append((pol, float(sc), _frac_rango(val, pol, cat)))
-        if not cand:
-            return pd.Series([None, None, None],
-                             index=["IAS_GLOBAL_POL_DIA","IAS_GLOBAL_CAT_DIA","IAS_GLOBAL_SCORE_DIA"])
-        cand.sort(key=lambda t: (t[1], t[2], -ORDEN_DOM.index(t[0])), reverse=True)
-        pol, sc, _ = cand[0]
-        return pd.Series([pol, row.get(f"IAS_{pol}_CAT_DIA"), sc],
-                         index=["IAS_GLOBAL_POL_DIA","IAS_GLOBAL_CAT_DIA","IAS_GLOBAL_SCORE_DIA"])
-
-    dfd[["IAS_GLOBAL_POL_DIA","IAS_GLOBAL_CAT_DIA","IAS_GLOBAL_SCORE_DIA"]] = dfd.apply(_dom, axis=1)
-    return dfd
+from numeralia.dominio.nom172 import compute_nom_daily_flags      # noqa: E402
+from numeralia.dominio.ias import (                                # noqa: E402
+    IAS_SOURCE,
+    ORDEN_DOM,
+    compute_ias_daily,
+)
+from numeralia.dominio.nom172 import frac_rango as _frac_rango     # noqa: E402
 
 
 # ── Constantes compartidas por los cálculos de numeralia ────────────────
@@ -1758,56 +1428,27 @@ MALA_25, MALA_26     = '2025: Días con mala calidad', '2026: Días con mala cal
 BUENA_25, BUENA_26   = '2025: Días con buena a aceptable', '2026: Días con buena a aceptable'
 SINDATO_25, SINDATO_26 = '2025: Días sin dato', '2026: Días sin dato'
 
-COLOR_BG = '#ffffff'
-COLOR_CARD = '#ffffff'
-COLOR_BORDER = '#e4e7ec'
-COLOR_TEXT = '#1a1d24'
-COLOR_MUTED = '#6b7280'
-
-# ── Paleta de marca (todo el dashboard: mapa, KPIs, Episodios, Alertas, IMECA) ──
-# Solo estos 3 colores; el resto son tintes/sombras derivados de ellos.
-COLOR_GRIS = '#465055'   # neutro / estructura
-COLOR_2025 = '#191970'   # azul marino — color oficial para el año 2025
-COLOR_2026 = '#4DC2B3'   # azul aqua/teal — color oficial para el año 2026
-
-COLOR_GOOD = COLOR_2026  # mapa: mejora (menos días de mala calidad) = aqua
-COLOR_BAD  = COLOR_2025  # mapa: empeora (más días de mala calidad) = azul marino
-
-COLOR_GRIS_50   = '#f4f5f5'
-COLOR_GRIS_100  = '#e6e8e9'
-COLOR_GRIS_MUTE = '#8a9096'
-
-# Colores por severidad de episodios (Precontingencia -> Fase I -> Fase II ->
-# Fase III), todos colores específicos pedidos.
-_SEVERIDAD_TINTES = {
-    1: '#FFB300',   # Precontingencia atmosférica
-    2: '#EF6C00',   # Contingencia atmosférica Fase I
-    3: '#DC143C',   # Contingencia atmosférica Fase II
-    4: '#4B0082',   # Contingencia atmosférica Fase III
-}
-
-PLOTLY_TEMPLATE = go.layout.Template(
-    layout=dict(
-        paper_bgcolor=COLOR_CARD,
-        plot_bgcolor=COLOR_CARD,
-        font=dict(family='Inter, Segoe UI, sans-serif', color=COLOR_TEXT, size=13),
-        colorway=[COLOR_2026, COLOR_2025, COLOR_GRIS],
-        xaxis=dict(gridcolor='#eef0f3', zerolinecolor='#d7dbe2', linecolor='#d7dbe2'),
-        yaxis=dict(gridcolor='#eef0f3', zerolinecolor='#d7dbe2', linecolor='#d7dbe2'),
-        legend=dict(bgcolor='rgba(0,0,0,0)'),
-        margin=dict(l=40, r=20, t=50, b=40),
-    )
+from numeralia.reporte.tema import (                              # noqa: E402
+    CARD_STYLE,
+    COLOR_BG,
+    COLOR_BORDER,
+    COLOR_CARD,
+    COLOR_GOOD,
+    COLOR_BAD,
+    COLOR_GRIS,
+    COLOR_GRIS_50,
+    COLOR_GRIS_100,
+    COLOR_GRIS_MUTE,
+    COLOR_MUTED,
+    COLOR_TEXT,
+    COLOR_2025,
+    COLOR_2026,
+    ESCALA_ANIO_ACTUAL,
+    ESCALA_ANIO_PREVIO,
+    PLOTLY_TEMPLATE,
+    color_texto,
+    SEVERIDAD_TINTES as _SEVERIDAD_TINTES,
 )
-
-CARD_STYLE = {
-    'backgroundColor': COLOR_CARD,
-    'border': f'1px solid {COLOR_BORDER}',
-    'borderRadius': '12px',
-    'padding': '20px',
-    # Misma sombra que las fichas KPI, para que todas las tarjetas del
-    # dashboard se sientan del mismo material.
-    'boxShadow': '0 1px 2px rgba(70,80,85,0.06), 0 6px 16px rgba(70,80,85,0.08)',
-}
 
 
 def _icono_descarga(btn_id: str):
@@ -1832,11 +1473,13 @@ def _icono_descarga(btn_id: str):
 # Los logos viven en MyDrive/logos. El código NO monta Drive por su cuenta,
 # para no interrumpir con la ventana de permisos: si es una sesión nueva,
 # corre drive.mount('/content/drive') en una celda aparte antes del pipeline.
-NOMBRE_CARPETA_LOGOS = 'logos'
-LOGO_SIMAJ = 'logo simaj (1).png'
-LOGO_SEMADET = 'SemadetGobJal_transp (1).png'
-
-ALTO_LOGO = '77px'
+from numeralia.reporte.tema import (                              # noqa: E402
+    ALTO_GRAFICA_EPISODIOS,
+    ALTO_LOGO,
+    LOGO_SEMADET,
+    LOGO_SIMAJ,
+    NOMBRE_CARPETA_LOGOS,
+)
 
 
 def _carpetas_logos():
@@ -2470,24 +2113,14 @@ def _tabla_episodios(df: pd.DataFrame):
 
 # ── Barras apiladas de episodios por contaminante ──────────────────────────
 #
-# Los tres contaminantes se distinguen por TEXTURA, no por color: el color
-# queda reservado para la severidad (amarillo = precontingencia, naranja =
-# Fase I), de modo que las gráficas se leen igual aunque se impriman en
-# blanco y negro.
-_TEXTURA_CONTAMINANTE = {
-    'Ozono':  '',    # liso
-    'PM10':   '/',   # rayitas diagonales
-    'PM2.5':  '.',   # puntitos
-}
-
-# Relleno claro de cada nivel de severidad; el contorno y la textura van en
-# el color pleno, que es lo que "encierra" la barra.
-_TINTE_CLARO_SEVERIDAD = {
-    1: '#FFF1D0',   # precontingencia (contorno #FFB300)
-    2: '#FBE0CC',   # contingencia Fase I (contorno #EF6C00)
-    3: '#F8D3DA',   # Fase II
-    4: '#DED0EA',   # Fase III
-}
+# Los tres contaminantes se distinguen por TONO dentro del color de su año:
+# el más claro abajo, el más oscuro arriba. La escala la calcula
+# numeralia.reporte.tema, que topa el tono oscuro para que la etiqueta de
+# cada segmento siga leyéndose; como los tonos difieren en luminancia, la
+# gráfica se sigue entendiendo impresa en blanco y negro.
+#
+# Orden de apilado, de abajo hacia arriba.
+_ORDEN_CONTAMINANTES = ('Ozono', 'PM10', 'PM2.5')
 
 
 def _episodios_por_contaminante(df: pd.DataFrame, anio_col: str, severidad: int):
@@ -2535,17 +2168,24 @@ def _datos_grafica_episodios(df: pd.DataFrame, col_2025: str, col_2026: str,
     """
     datos_25 = dict(_episodios_por_contaminante(df, col_2025, severidad))
     datos_26 = dict(_episodios_por_contaminante(df, col_2026, severidad))
-    contaminantes = list(_TEXTURA_CONTAMINANTE)
+    contaminantes = list(_ORDEN_CONTAMINANTES)
 
     return {
         'titulo': titulo,
-        'color': _SEVERIDAD_TINTES[severidad],
-        'relleno': _TINTE_CLARO_SEVERIDAD[severidad],
+        # El color de severidad está pensado como relleno: sobre blanco, como
+        # texto, se ve lavado. color_texto lo oscurece lo justo para que se
+        # lea, sin moverle el tono ni romper el vínculo con la tabla.
+        'color_titulo': color_texto(_SEVERIDAD_TINTES[severidad]),
         'anios': ['2025', '2026'],
+        # Colores de cada año, en el mismo orden que 'anios'. Las barras y los
+        # totales se pintan con estos; la severidad se queda en el título.
+        'colores_anio': [COLOR_2025, COLOR_2026],
+        # Un tono por contaminante, dentro del color de cada año. El índice
+        # de la serie elige el tono; el del año elige la escala.
+        'escalas_anio': [ESCALA_ANIO_PREVIO, ESCALA_ANIO_ACTUAL],
         'series': [
             {'nombre': c,
-             'datos': [datos_25.get(c, 0), datos_26.get(c, 0)],
-             'textura': _TEXTURA_CONTAMINANTE[c]}
+             'datos': [datos_25.get(c, 0), datos_26.get(c, 0)]}
             for c in contaminantes
         ],
         'totales': [sum(datos_25.values()), sum(datos_26.values())],
@@ -3023,14 +2663,17 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             # clientside. La altura va aquí porque ECharts necesita que el
             # div ya tenga tamaño antes de inicializarse.
             html.Div([
+                # La altura iguala a la de la tabla comparativa de la
+                # izquierda (~450 px), para que las dos mitades del bloque
+                # terminen a la misma altura en vez de dejar un hueco.
                 html.Div(id='echart-precontingencias',
-                         style={'flex': '1', 'minWidth': '190px', 'height': '300px'}),
+                         style={'flex': '1', 'minWidth': '190px', 'height': ALTO_GRAFICA_EPISODIOS}),
                 html.Div(id='echart-contingencias-f1',
-                         style={'flex': '1', 'minWidth': '190px', 'height': '300px'}),
+                         style={'flex': '1', 'minWidth': '190px', 'height': ALTO_GRAFICA_EPISODIOS}),
             ], style={'flex': '1 1 400px', 'minWidth': '380px', 'display': 'flex',
-                      'gap': '10px', 'alignItems': 'center'}),
+                      'gap': '10px', 'alignItems': 'stretch'}),
         ], style={'display': 'flex', 'gap': '20px', 'flexWrap': 'wrap',
-                  'alignItems': 'center'}),
+                  'alignItems': 'stretch'}),
 
         dcc.Store(id='datos-echarts-episodios', data={
             'precontingencias': _datos_grafica_episodios(
@@ -3400,18 +3043,6 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
             // Texturas por contaminante: el color queda reservado para la
             // severidad, así que los tres se distinguen por trama.
-            function decal(textura, color) {
-                if (textura === '/') {
-                    return {symbol: 'rect', color: color, dashArrayX: [1, 0],
-                            dashArrayY: [2, 5], rotation: -Math.PI / 4};
-                }
-                if (textura === '.') {
-                    return {symbol: 'circle', color: color, symbolSize: 0.45,
-                            dashArrayX: [[4, 4], [0, 4, 4, 0]], dashArrayY: [3, 3]};
-                }
-                return {symbol: 'none'};
-            }
-
             function dibujar(idDiv, cfg) {
                 const el = document.getElementById(idDiv);
                 if (!el) { return; }
@@ -3419,24 +3050,46 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 let chart = echarts.getInstanceByDom(el);
                 if (!chart) { chart = echarts.init(el, null, {renderer: 'svg'}); }
 
-                const series = cfg.series.map(function (s) {
+                // El eje lo fija el año con más episodios, así que un
+                // segmento chico ocupa la misma fracción por más alta que se
+                // haga la gráfica. De ahí el alto mínimo de abajo.
+                const maxTotal = Math.max.apply(null, cfg.totales) || 1;
+                // Fracción por debajo de la cual ya no cabe el nombre además
+                // del número.
+                const fraccionEstrecha = 0.09;
+
+                const series = cfg.series.map(function (s, i) {
                     return {
                         name: s.nombre,
                         type: 'bar',
                         stack: 'total',
                         barWidth: '48%',
+                        // Sin esto, un valor de 2 sobre 162 se dibuja como una
+                        // astilla de 4 px y no se ve. Cuesta algo de precisión
+                        // proporcional en los segmentos chicos, pero el número
+                        // va rotulado, así que el dato sigue siendo exacto.
+                        barMinHeight: 20,
+                        // Este itemStyle es el que toma el cuadrito de la
+                        // leyenda: lleva el tono del año actual, para que la
+                        // leyenda se lea de claro a oscuro igual que la barra.
                         itemStyle: {
-                            color: cfg.relleno,
-                            borderColor: cfg.color,
+                            color: cfg.escalas_anio[1][i],
+                            borderColor: cfg.colores_anio[1],
                             borderWidth: 1.2,
-                            borderRadius: 4,
-                            decal: decal(s.textura, cfg.color)
+                            borderRadius: 4
                         },
                         label: {
                             show: true,
                             position: 'inside',
                             formatter: function (p) {
-                                return p.value ? '{n|' + s.nombre + '}\\n{v|' + p.value + '}' : '';
+                                if (!p.value) { return ''; }
+                                // En un segmento angosto no cabe el nombre
+                                // además del número; el tono y la leyenda
+                                // ya dicen de qué contaminante se trata.
+                                if (p.value / maxTotal < fraccionEstrecha) {
+                                    return '{v|' + p.value + '}';
+                                }
+                                return '{n|' + s.nombre + '}\\n{v|' + p.value + '}';
                             },
                             rich: {
                                 n: {fontSize: 9, color: '""" + COLOR_GRIS_MUTE + """', lineHeight: 13, align: 'center'},
@@ -3456,31 +3109,52 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     stack: 'total',
                     silent: true,
                     itemStyle: {color: 'transparent'},
-                    data: [0, 0],
+                    // El total va en el color de su año, para que se lea
+                    // junto con la barra que corona.
+                    data: cfg.totales.map(function (_, j) {
+                        return {value: 0, label: {color: cfg.colores_anio[j]}};
+                    }),
                     label: {
                         show: true,
                         position: 'top',
                         formatter: function (p) { return cfg.totales[p.dataIndex]; },
                         fontSize: 15,
                         fontWeight: 'bold',
-                        color: cfg.color,
                         backgroundColor: 'transparent',
                         borderWidth: 0,
                         padding: 0,
-                        distance: 8
+                        // 8 px alcanzaban cuando el segmento de arriba era una
+                        // astilla; con el alto mínimo, la caja sube y el total
+                        // se le encimaba.
+                        distance: 22
                     }
                 });
 
-                cfg.series.forEach(function (s, i) { series[i].data = s.datos; });
+                // Cada segmento toma el tono que le toca dentro de la escala
+                // de su año: i elige el contaminante, j elige el año.
+                cfg.series.forEach(function (s, i) {
+                    series[i].data = s.datos.map(function (v, j) {
+                        return {
+                            // null y no 0: con 0, barMinHeight dibujaría una
+                            // caja de 20 px para un contaminante que no activó
+                            // ningún episodio.
+                            value: v > 0 ? v : null,
+                            itemStyle: {
+                                color: cfg.escalas_anio[j][i],
+                                borderColor: cfg.colores_anio[j]
+                            }
+                        };
+                    });
+                });
 
                 chart.setOption({
                     title: {
                         text: cfg.titulo,
                         left: 'center',
                         top: 4,
-                        textStyle: {fontSize: 13, fontWeight: 'bold', color: cfg.color}
+                        textStyle: {fontSize: 13, fontWeight: 'bold', color: cfg.color_titulo}
                     },
-                    grid: {left: 6, right: 6, top: 52, bottom: 46, containLabel: true},
+                    grid: {left: 6, right: 6, top: 64, bottom: 46, containLabel: true},
                     tooltip: {
                         trigger: 'item',
                         formatter: function (p) {
@@ -3493,8 +3167,10 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     },
                     legend: {
                         bottom: 0,
-                        itemWidth: 11,
-                        itemHeight: 11,
+                        // Un poco más grandes que antes: en 11 px los tres
+                        // cuadritos se veían casi iguales.
+                        itemWidth: 16,
+                        itemHeight: 14,
                         itemGap: 12,
                         textStyle: {fontSize: 11, color: '""" + COLOR_GRIS_MUTE + """'},
                         data: cfg.series.map(function (s) { return s.nombre; })
@@ -3504,8 +3180,14 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                         data: cfg.anios,
                         axisLine: {show: false},
                         axisTick: {show: false},
-                        axisLabel: {fontSize: 12, fontWeight: 'bold',
-                                    color: '""" + COLOR_GRIS + """'}
+                        axisLabel: {
+                            fontSize: 12, fontWeight: 'bold',
+                            // Cada año en su color, igual que el encabezado
+                            // de la tabla comparativa.
+                            color: function (valor, indice) {
+                                return cfg.colores_anio[indice] || '""" + COLOR_GRIS + """';
+                            }
+                        }
                     },
                     yAxis: {type: 'value', show: false},
                     series: series,
@@ -3754,23 +3436,21 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 # conviene dejarlos vacíos y definir todo en el .env.
 #
 # Hoja destino: contiene Cruda, Procesada, Analitica, Episodios, IMECA MAXIMO, ALERTAS
-URL_DESTINO = os.getenv(
-    'URL_DESTINO',
-    "https://docs.google.com/spreadsheets/d/1NaEdWeSOME_UV2ucOrQav_LMPNihOVhmGOtSt-HCAkA/edit")
+# Las URLs se resuelven en numeralia.config a partir del .env. Los valores
+# de respaldo se conservan para que el archivo siga corriendo tal cual en
+# Colab, donde no hay .env.
+from numeralia.config import Config                                # noqa: E402
 
-# Hojas fuente de episodios/alertas 2025 y 2026
-URL_FUENTE_2025 = os.getenv(
-    'URL_FUENTE_2025',
-    "https://docs.google.com/spreadsheets/d/1e6iSYmEbRxWQiLnhEl3C1vpZsJ4TG-tTV9aU78-E-c4/edit")
-URL_FUENTE_2026 = os.getenv(
-    'URL_FUENTE_2026',
-    "https://docs.google.com/spreadsheets/d/1Kzr8qWd0cew_CF-KOvukmS6Qo4Ry9O6md_EBqtqWv4k/edit")
+CONFIG = Config.desde_env()
 
-# Hoja con el resumen mensual (hoja "Resumen MENSUAL", columnas A-C: AÑO, MES,
-# GLOBAL BUENA O ACEPTABLE IAS), usada para la serie de tiempo mensual
-URL_RESUMEN_MENSUAL = os.getenv(
-    'URL_RESUMEN_MENSUAL',
-    "https://docs.google.com/spreadsheets/d/1cAICszRtOI1j9ZDDyqhnekEEUXDNCJXJQYWU-xddzMs/edit")
+URL_DESTINO = CONFIG.urls.get('destino') or \
+    "https://docs.google.com/spreadsheets/d/1NaEdWeSOME_UV2ucOrQav_LMPNihOVhmGOtSt-HCAkA/edit"
+URL_FUENTE_2025 = CONFIG.urls.get('fuente_2025') or \
+    "https://docs.google.com/spreadsheets/d/1e6iSYmEbRxWQiLnhEl3C1vpZsJ4TG-tTV9aU78-E-c4/edit"
+URL_FUENTE_2026 = CONFIG.urls.get('fuente_2026') or \
+    "https://docs.google.com/spreadsheets/d/1Kzr8qWd0cew_CF-KOvukmS6Qo4Ry9O6md_EBqtqWv4k/edit"
+URL_RESUMEN_MENSUAL = CONFIG.urls.get('resumen_mensual') or \
+    "https://docs.google.com/spreadsheets/d/1cAICszRtOI1j9ZDDyqhnekEEUXDNCJXJQYWU-xddzMs/edit"
 
 
 def run_full_pipeline(anio_actual: Optional[int] = None, lanzar_dashboard: bool = True,
