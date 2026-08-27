@@ -38,7 +38,7 @@ COLOR_BAD  = COLOR_ANIO_PREVIO  # mapa: empeora (más días de mala calidad)
 
 COLOR_GRIS_50   = '#f4f5f5'
 COLOR_GRIS_100  = '#e6e8e9'
-COLOR_GRIS_MUTE = '#8a9096'
+COLOR_GRIS_MUTE = '#70767c'   # gris de las explicaciones, un tono más oscuro
 
 
 def tinte(color_hex: str, proporcion: float = 0.12) -> str:

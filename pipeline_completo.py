@@ -118,6 +118,7 @@ import openpyxl
 import pandas as pd
 import gspread
 from google.auth import default
+from gspread.http_client import BackOffHTTPClient
 from gspread_dataframe import set_with_dataframe
 
 from dash import Dash, html, dcc, dash_table, Input, Output
@@ -181,28 +182,36 @@ def autenticar() -> gspread.Client:
     El orden importa: las cuentas de servicio van primero para que, si están
     configuradas, nunca se abra un diálogo de permisos — eso es lo que
     permite que el pipeline corra desatendido.
+
+    Todos los caminos usan BackOffHTTPClient: Google limita las lecturas a 60
+    por minuto y una corrida completa gasta cerca de la mitad, así que basta
+    con que el dashboard esté abierto refrescándose para toparse con un 429 a
+    media corrida. Este cliente reintenta solo, con esperas crecientes, en vez
+    de tirar el pipeline.
     """
     desde_env = _credenciales_desde_env()
     if desde_env is not None:
-        print(f"🔐 Autenticando con cuenta de servicio desde el entorno "
+        print(f"Autenticando con cuenta de servicio desde el entorno "
               f"({desde_env['client_email']})")
-        return gspread.service_account_from_dict(desde_env)
+        return gspread.service_account_from_dict(
+            desde_env, http_client=BackOffHTTPClient)
 
     ruta = _ruta_credenciales()
     if ruta is not None:
-        print(f"🔐 Autenticando con cuenta de servicio: {ruta.name}")
-        return gspread.service_account(filename=str(ruta))
+        print(f"Autenticando con cuenta de servicio: {ruta.name}")
+        return gspread.service_account(
+            filename=str(ruta), http_client=BackOffHTTPClient)
 
     if _en_colab():
         from google.colab import auth
         auth.authenticate_user()
         creds, _ = default()
-        return gspread.authorize(creds)
+        return gspread.authorize(creds, http_client=BackOffHTTPClient)
 
-    print("ℹ No hay credenciales en el entorno ni archivo de cuenta de servicio; "
+    print("Nota: no hay credenciales en el entorno ni archivo de cuenta de servicio; "
           "se usará la credencial por defecto del sistema.")
     creds, _ = default()
-    return gspread.authorize(creds)
+    return gspread.authorize(creds, http_client=BackOffHTTPClient)
 
 
 def _worksheet_a_df(ws) -> pd.DataFrame:
@@ -218,7 +227,7 @@ def seleccionar_archivo(titulo: str = "Seleccionar archivo Excel") -> str:
     """Selector de archivo compatible con Colab y escritorio (no se usa en el flujo de Sheets)."""
     if _en_colab():
         from google.colab import files
-        print(f"📂 {titulo}")
+        print(f"{titulo}")
         uploaded = files.upload()
         if not uploaded:
             return ''
@@ -244,7 +253,7 @@ def descargar_archivo(ruta: str):
     """Descarga un archivo al equipo del usuario (solo Colab; no se usa en el flujo de Sheets)."""
     if _en_colab() and ruta and Path(ruta).exists():
         from google.colab import files
-        print(f"⬇  Descargando a tu computadora: {Path(ruta).name}")
+        print(f"Descargando a tu computadora: {Path(ruta).name}")
         files.download(ruta)
 
 
@@ -438,7 +447,7 @@ class ValidadorCalidadAire:
     # ------------------------------------------------------------------
     def aplicar_banderas(self, df: pd.DataFrame) -> pd.DataFrame:
         """Mapea banderas ENVISTA a códigos internos y rellena vacíos con ND."""
-        print("\nAplicando mapeo de banderas ENVISTA → base...")
+        print("\nAplicando mapeo de banderas ENVISTA -> base...")
         df_flag = df.copy()
         cols_param = [c for c in df_flag.columns if c not in ['STATION', 'DATE', 'HOUR']]
         df_flag[cols_param] = df_flag[cols_param].replace(self.banderas)
@@ -938,7 +947,7 @@ def exportar_numeralia_a_sheet(dfd_all: pd.DataFrame, anio: int, spreadsheet, ho
     valores = _df_a_valores_sheet(df_num)
     worksheet.update(range_name="A1", values=valores)
 
-    print(f"✔ Numeralia escrita en la hoja '{hoja}' ({len(df_num)} filas).")
+    print(f"OK: Numeralia escrita en la hoja '{hoja}' ({len(df_num)} filas).")
     return df_num
 
 
@@ -1060,9 +1069,51 @@ def _anio_de_numeralia(numeralia: pd.DataFrame) -> Optional[int]:
     return None
 
 
+HOJA_CONTROL_ACUMULADO = "Acumuladas"
+
+
+def _hoja_control(spreadsheet, nombre: str = HOJA_CONTROL_ACUMULADO):
+    """
+    Devuelve la pestaña donde se lleva registro de qué días ya se sumaron a
+    'Analitica'. La crea vacía la primera vez.
+    """
+    try:
+        return spreadsheet.worksheet(nombre)
+    except gspread.WorksheetNotFound:
+        ws = spreadsheet.add_worksheet(title=nombre, rows=400, cols=3)
+        ws.update(range_name="A1", values=[["Año", "Fecha", "Registrado"]])
+        print(f"Nota: Se creó la hoja de control '{nombre}' (estaba vacía: "
+              f"se asume que no hay días acumulados todavía).")
+        return ws
+
+
+def _fechas_ya_acumuladas(spreadsheet, anio: int) -> set:
+    """Fechas (date) de ese año que ya se sumaron a 'Analitica' en corridas previas."""
+    filas = _hoja_control(spreadsheet).get_all_records()
+    fechas = set()
+    for fila in filas:
+        try:
+            if int(fila.get("Año", 0)) != anio:
+                continue
+        except (TypeError, ValueError):
+            continue
+        fecha = pd.to_datetime(fila.get("Fecha"), errors="coerce")
+        if pd.notna(fecha):
+            fechas.add(fecha.date())
+    return fechas
+
+
+def _registrar_fechas_acumuladas(spreadsheet, anio: int, fechas) -> None:
+    """Anota las fechas recién sumadas para que la próxima corrida no las repita."""
+    ws = _hoja_control(spreadsheet)
+    sello = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    ws.append_rows([[str(anio), f.strftime('%Y-%m-%d'), sello] for f in sorted(fechas)])
+
+
 def actualizar_acumulado(spreadsheet, anio_actual: Optional[int] = None,
                           hoja_procesada: str = "Procesada",
-                          hoja_analitica: str = "Analitica") -> pd.DataFrame:
+                          hoja_analitica: str = "Analitica",
+                          dfd_all: Optional[pd.DataFrame] = None) -> pd.DataFrame:
     """
     Suma la numeralia del día (hoja 'Procesada') al acumulado histórico
     ('Analitica').
@@ -1076,6 +1127,13 @@ def actualizar_acumulado(spreadsheet, anio_actual: Optional[int] = None,
 
     `anio_actual` se conserva solo para avisar si difiere de lo que traen
     los datos, porque casi siempre significa que Cruda no está actualizada.
+
+    La suma es acumulativa, así que repetirla duplicaría los días. Para que
+    volver a correr el pipeline sea inofensivo —algo que se hace todo el
+    tiempo, aunque sea solo para ver el dashboard— se lleva registro de qué
+    fechas ya se sumaron en la hoja 'Acumuladas'. Si `dfd_all` viene con la
+    tabla diaria, solo se suman los días que no estén registrados; si no
+    queda ninguno nuevo, no se escribe nada y el pipeline sigue derecho.
     """
     numeralia = pd.DataFrame(spreadsheet.worksheet(hoja_procesada).get_all_records())
 
@@ -1087,7 +1145,7 @@ def actualizar_acumulado(spreadsheet, anio_actual: Optional[int] = None,
             f"Columnas encontradas: {list(numeralia.columns)}")
 
     if anio_actual is not None and anio_actual != anio:
-        print(f"⚠ Los datos de '{hoja_procesada}' son del año {anio}, no de {anio_actual}. "
+        print(f"AVISO: Los datos de '{hoja_procesada}' son del año {anio}, no de {anio_actual}. "
               f"Se actualizará el acumulado de {anio}.")
         print(f"  Si esperabas {anio_actual}, revisa que la hoja 'Cruda' tenga datos de ese año.")
 
@@ -1105,6 +1163,36 @@ def actualizar_acumulado(spreadsheet, anio_actual: Optional[int] = None,
             f"A la hoja '{hoja_analitica}' le faltan estas columnas: {faltantes}. "
             f"Columnas que sí tiene: {list(acumulado.columns)}")
 
+    # Solo se suman los días que no se hayan sumado antes. Sin la tabla diaria
+    # no hay forma de saber de qué fechas habla la numeralia, así que en ese
+    # caso se conserva el comportamiento de siempre.
+    fechas_nuevas = None
+    if dfd_all is not None and "FECHA" in dfd_all.columns:
+        # Solo las fechas DEL AÑO detectado: la numeralia descarta las demás
+        # (ver _calcular_numeralia), así que registrarlas diría que se sumaron
+        # días que en realidad nunca se contaron. Pasa de verdad en el cambio
+        # de año, cuando 'Cruda' trae el 31 de diciembre y el 1 de enero.
+        _f = pd.to_datetime(dfd_all["FECHA"]).dropna()
+        fechas_datos = {f.date() for f in _f[_f.dt.year == anio].unique()}
+        ya_sumadas = _fechas_ya_acumuladas(spreadsheet, anio)
+        fechas_nuevas = sorted(fechas_datos - ya_sumadas)
+
+        if not fechas_nuevas:
+            repetidas = ', '.join(f.strftime('%d/%b/%Y') for f in sorted(fechas_datos))
+            print(f"Los días de 'Cruda' ({repetidas}) ya estaban sumados en "
+                  f"'{hoja_analitica}'. No se suma nada; el resto del pipeline sigue igual.")
+            return acumulado
+
+        # Se recalcula la numeralia contando únicamente los días nuevos, para
+        # que un 'Cruda' que trae días viejos y nuevos mezclados solo aporte
+        # los que faltan.
+        solo_nuevas = dfd_all[pd.to_datetime(dfd_all["FECHA"]).dt.date.isin(fechas_nuevas)]
+        numeralia = _tabla_numeralia(solo_nuevas, anio)
+        omitidas = len(fechas_datos) - len(fechas_nuevas)
+        detalle = ', '.join(f.strftime('%d/%b') for f in fechas_nuevas)
+        print(f"  Días nuevos a sumar: {len(fechas_nuevas)} ({detalle})"
+              + (f"; {omitidas} ya estaban sumados y se omiten." if omitidas else "."))
+
     acumulado[col_mala]    = acumulado[col_mala]    + numeralia[f"Días con mala calidad ({anio})"]
     acumulado[col_buena]   = acumulado[col_buena]   + numeralia[f"Días con buena o aceptable ({anio})"]
     acumulado[col_sindato] = acumulado[col_sindato] + numeralia[f"Días sin dato ({anio})"]
@@ -1114,7 +1202,13 @@ def actualizar_acumulado(spreadsheet, anio_actual: Optional[int] = None,
     datos_a_subir = [df_serializable.columns.values.tolist()] + df_serializable.values.tolist()
     ws_analitica.update(range_name="A1", values=datos_a_subir)
 
-    print(f"✔ Acumulado actualizado en '{hoja_analitica}' para el año {anio}.")
+    # El registro va después de escribir: si algo truena antes, la fecha no
+    # queda marcada y el próximo intento la vuelve a sumar, en vez de darla
+    # por buena sin estarlo.
+    if fechas_nuevas:
+        _registrar_fechas_acumuladas(spreadsheet, anio, fechas_nuevas)
+
+    print(f"OK: Acumulado actualizado en '{hoja_analitica}' para el año {anio}.")
     return acumulado
 
 
@@ -1261,7 +1355,7 @@ def calcular_comparativo_episodios(df_2025_: pd.DataFrame, df_2026_: pd.DataFram
     # episodio del conteo. Se conserva y se avisa para corregir la hoja.
     sin_fecha_26 = df_2026_['Inicio'].isna()
     if sin_fecha_26.any():
-        print(f"⚠ {int(sin_fecha_26.sum())} episodio(s) de 2026 tienen fecha de inicio "
+        print(f"AVISO: {int(sin_fecha_26.sum())} episodio(s) de 2026 tienen fecha de inicio "
               f"ilegible; se cuentan de todos modos.")
     df_2026_parcial = df_2026_[sin_fecha_26 | (df_2026_['Inicio'] <= corte_2026)]
 
@@ -1326,12 +1420,12 @@ def run_episodios(gc, spreadsheet_destino, url_fuente_2025: str, url_fuente_2026
     ws_ep = spreadsheet_destino.worksheet(hoja_episodios)
     ws_ep.clear()
     set_with_dataframe(ws_ep, _df_nativo(comparativo_parcial.reset_index()), include_index=False)
-    print(f"✔ Episodios actualizados en '{hoja_episodios}'.")
+    print(f"OK: Episodios actualizados en '{hoja_episodios}'.")
 
     ws_im = spreadsheet_destino.worksheet(hoja_imeca)
     ws_im.clear()
     set_with_dataframe(ws_im, _df_nativo(imeca_max.reset_index()))
-    print(f"✔ IMECA máximo actualizado en '{hoja_imeca}'.")
+    print(f"OK: IMECA máximo actualizado en '{hoja_imeca}'.")
 
     # Se regresan sh_2025 / sh_2026 para que Alertas reutilice la misma conexión
     # (son los mismos spreadsheets fuente, solo cambian de pestaña).
@@ -1377,7 +1471,7 @@ def run_alertas(sh_2025, sh_2026, spreadsheet_destino, hoja_alertas: str = "ALER
         df_2025_A['_fecha_inicio'] = pd.to_datetime(df_2025_A[col_fecha_2025], dayfirst=True, errors='coerce')
         df_2025_A = df_2025_A[df_2025_A['_fecha_inicio'] <= _corte_mismo_periodo(2025)]
     else:
-        print("⚠ No se encontró columna de fecha de inicio en 'Alertas 2025'; "
+        print("AVISO: No se encontró columna de fecha de inicio en 'Alertas 2025'; "
               "no se aplicó el filtro de mismo periodo (se cuenta el año completo).")
 
     if col_fecha_2026 is not None:
@@ -1389,7 +1483,7 @@ def run_alertas(sh_2025, sh_2026, spreadsheet_destino, hoja_alertas: str = "ALER
         sin_fecha = df_2026_A['_fecha_inicio'].isna() & (
             df_2026_A[col_fecha_2026].astype(str).str.strip() != '')
         if sin_fecha.any():
-            print(f"⚠ {int(sin_fecha.sum())} fila(s) de 'NUEVO alertas 2026' tienen una "
+            print(f"AVISO: {int(sin_fecha.sum())} fila(s) de 'NUEVO alertas 2026' tienen una "
                   f"fecha que no se pudo interpretar; se cuentan de todos modos:")
             for v in df_2026_A.loc[sin_fecha, col_fecha_2026].astype(str).head(10):
                 print(f"    · {v!r}")
@@ -1397,7 +1491,7 @@ def run_alertas(sh_2025, sh_2026, spreadsheet_destino, hoja_alertas: str = "ALER
         df_2026_A = df_2026_A[df_2026_A['_fecha_inicio'].isna()
                               | (df_2026_A['_fecha_inicio'] <= _corte_mismo_periodo(2026))]
     else:
-        print("⚠ No se encontró columna de fecha de inicio en 'NUEVO alertas 2026'; "
+        print("AVISO: No se encontró columna de fecha de inicio en 'NUEVO alertas 2026'; "
               "no se aplicó el filtro de mismo periodo (se cuenta el año completo).")
 
     alertas_2025 = _contar_alertas(df_2025_A)
@@ -1417,7 +1511,7 @@ def run_alertas(sh_2025, sh_2026, spreadsheet_destino, hoja_alertas: str = "ALER
     ws = spreadsheet_destino.worksheet(hoja_alertas)
     ws.clear()
     set_with_dataframe(ws, _df_nativo(comparativo_alertas.reset_index()))
-    print(f"✔ Alertas actualizadas en '{hoja_alertas}'.")
+    print(f"OK: Alertas actualizadas en '{hoja_alertas}'.")
 
 
 # ============================================================================
@@ -1515,7 +1609,7 @@ def _logo_src(nombre_archivo: str):
             return f'data:image/png;base64,{datos}'
 
     buscadas = ' | '.join(str(c) for c in _carpetas_logos())
-    print(f"ℹ Logo '{nombre_archivo}' no encontrado. Se buscó en: {buscadas}")
+    print(f"Nota: Logo '{nombre_archivo}' no encontrado. Se buscó en: {buscadas}")
     return None
 
 
@@ -1563,11 +1657,11 @@ def _encabezado_reporte():
             _celda_logo(src_simaj, 'flex-start'),
             html.Div([
                 html.H1('Reporte Diario de Calidad del Aire', style={
-                    'margin': '0', 'fontSize': '35px', 'fontWeight': '600',
+                    'margin': '0', 'fontSize': '37px', 'fontWeight': '600',
                     'color': COLOR_GRIS, 'textAlign': 'center', 'lineHeight': '1.15',
                 }),
                 html.Div(_fecha_encabezado(), style={
-                    'color': COLOR_2026, 'fontSize': '18px', 'fontWeight': '600',
+                    'color': COLOR_2026, 'fontSize': '20px', 'fontWeight': '600',
                     'textAlign': 'center', 'marginTop': '8px',
                 }),
             ], style={'flex': '2 1 0', 'display': 'flex', 'alignItems': 'center',
@@ -1582,7 +1676,7 @@ def _encabezado_reporte():
             'El Reporte Diario de Calidad del Aire presenta información acumulada '
             'al día señalado en el encabezado. Permite conocer cómo se ha comportado '
             'la calidad del aire registrada por el SIMAJ.',
-            style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'lineHeight': '1.6',
+            style={'color': COLOR_GRIS_MUTE, 'fontSize': '17px', 'lineHeight': '1.6',
                    'textAlign': 'center', 'maxWidth': '1000px', 'margin': '0 auto'},
         ),
     ], style={'marginBottom': '32px'})
@@ -1621,7 +1715,7 @@ def _fig_mapa(df: pd.DataFrame):
     fig.update_traces(
         text=d['Estación'].tolist(),
         textposition='top center',
-        textfont=dict(size=10, color='#2d3436', weight='bold'),
+        textfont=dict(size=12, color='#2d3436', weight='bold'),
         mode='markers+text',
         hovertemplate="<b>%{customdata[1]}</b><br>Días buena/aceptable 2026: %{customdata[0]}<extra></extra>",
     )
@@ -1655,7 +1749,7 @@ def _fig_a_base64(fig, ancho: int = 1000, alto: int = 520):
         datos = fig.to_image(format='png', width=ancho, height=alto, scale=2)
         return 'data:image/png;base64,' + base64.b64encode(datos).decode('ascii')
     except Exception as e:
-        print(f"ℹ No se pudo pre-generar la imagen del mapa para el PDF: {e}")
+        print(f"Nota: No se pudo pre-generar la imagen del mapa para el PDF: {e}")
         print("  Instala kaleido si quieres el mapa en el PDF:  %pip install kaleido -q")
         return None
 
@@ -1670,13 +1764,13 @@ def _card_leyenda_estaciones(acumulado: pd.DataFrame):
         html.Span(nombre, style={
             'backgroundColor': COLOR_GRIS_50, 'color': COLOR_GRIS,
             'border': f'1px solid {COLOR_GRIS_100}', 'borderRadius': '999px',
-            'padding': '4px 12px', 'fontSize': '12px', 'fontWeight': '600',
+            'padding': '4px 12px', 'fontSize': '14px', 'fontWeight': '600',
         })
         for nombre in estaciones
     ]
     return html.Div([
         html.Div('Estaciones en el mapa', style={
-            'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '14px', 'marginBottom': '10px'}),
+            'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '16px', 'marginBottom': '10px'}),
         html.Div(chips, style={'display': 'flex', 'flexWrap': 'wrap', 'gap': '8px'}),
     ], style={**CARD_STYLE, 'marginBottom': '20px'})
 
@@ -1743,7 +1837,14 @@ def _fig_serie_buena_mensual(df_resumen: pd.DataFrame):
 
     ANCHO_PASTILLA = 0.12      # en unidades de categoría (medio ancho)
     ALTO_PASTILLA = 0.05       # en fracción del alto del lienzo
-    RADIO_X, RADIO_Y = 0.10, 0.020
+    # El radio va en las mismas unidades mixtas que la pastilla, así que para
+    # que la curva se vea igual en las cuatro esquinas hay que convertirlo a
+    # píxeles por separado en cada eje: una unidad de categoría mide
+    # ancho_del_área/12 px y una de 'paper' mide el alto de la figura (330 px).
+    # Con RADIO_X = 0.10 el radio se comía el 83% del medio ancho, no quedaba
+    # tramo recto en los lados y la pastilla salía abombada en vez de
+    # rectangular.
+    RADIO_X, RADIO_Y = 0.055, 0.016
 
     def _pastilla(cx, cy, color):
         """Rectángulo con esquinas redondeadas, en coordenadas mixtas:
@@ -1784,7 +1885,7 @@ def _fig_serie_buena_mensual(df_resumen: pd.DataFrame):
                 x=mes, xref='x',
                 y=alto, yref='paper',
                 text=f'<b>{int(acumulado)}</b>',
-                showarrow=False, font=dict(size=11, color='#ffffff'),
+                showarrow=False, font=dict(size=13, color='#ffffff'),
                 # Sin el anclaje explícito, Plotly pega la anotación al borde
                 # y el número queda cortado a media pastilla.
                 xanchor='center', yanchor='middle', yshift=0,
@@ -1796,16 +1897,16 @@ def _fig_serie_buena_mensual(df_resumen: pd.DataFrame):
         margin=dict(l=60, r=20, t=95, b=50),
         showlegend=True,
         legend=dict(orientation='h', yanchor='bottom', y=1.30, xanchor='right', x=1,
-                    font=dict(size=12)),
+                    font=dict(size=14)),
         annotations=anotaciones,
         shapes=figuras,
         plot_bgcolor='#ffffff',
         paper_bgcolor='#ffffff',
         yaxis=dict(title=dict(text='Días acumulados', standoff=14), rangemode='tozero',
                     showgrid=True, gridcolor='#eef0f3', zeroline=False, showline=False,
-                    ticks='', automargin=True, tickfont=dict(size=12)),
+                    ticks='', automargin=True, tickfont=dict(size=14)),
         xaxis=dict(title=None, showgrid=False, zeroline=False, showline=True,
-                    linecolor='#d7dbe2', ticks='', automargin=True, tickfont=dict(size=12),
+                    linecolor='#d7dbe2', ticks='', automargin=True, tickfont=dict(size=14),
                     categoryorder='array',
                     categoryarray=[_MESES_NOMBRE[i] for i in range(1, 13)]),
     )
@@ -1815,11 +1916,11 @@ def _fig_serie_buena_mensual(df_resumen: pd.DataFrame):
 def _card_serie_mensual_2025(df_resumen: pd.DataFrame):
     return html.Div([
         html.Div('Acumulado Mensual de Días con Buena o Aceptable Calidad del Aire 2025-2026', style={
-            'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '20px', 'marginBottom': '14px'}),
+            'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '22px', 'marginBottom': '14px'}),
         html.Div('Acumulado mensual de días en los que la calidad del aire fue buena o aceptable según '
                  'el Índice Aire y Salud (NOM-172-SEMARNAT-2023), considerando el valor más alto '
                  'registrado por el SIMAJ.',
-                 style={'color': COLOR_GRIS_MUTE, 'fontSize': '13px', 'marginBottom': '14px'}),
+                 style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         dcc.Graph(id='grafico-serie-mensual', figure=_fig_serie_buena_mensual(df_resumen),
                   config={'displayModeBar': False}),
         dcc.Interval(id='refrescar-serie-mensual', interval=20 * 1000, n_intervals=0),
@@ -1836,7 +1937,7 @@ def _detalle_placeholder():
         html.Div('Pasa el cursor sobre una estación del mapa '
                  'para ver su comparativo 2025 vs 2026.',
                  style={'maxWidth': '220px', 'lineHeight': '1.5'}),
-        style={'color': COLOR_GRIS_MUTE, 'fontSize': '12px', 'textAlign': 'center',
+        style={'color': COLOR_GRIS_MUTE, 'fontSize': '14px', 'textAlign': 'center',
                'minHeight': '180px', 'display': 'flex',
                'alignItems': 'center', 'justifyContent': 'center'},
     )
@@ -1857,7 +1958,7 @@ def _tabla_detalle_estacion(estacion: str, row: pd.Series):
     ])
     filas = [
         html.Tr([
-            html.Td(label, style={'padding': '7px 10px', 'color': COLOR_GRIS, 'fontSize': '13px',
+            html.Td(label, style={'padding': '7px 10px', 'color': COLOR_GRIS, 'fontSize': '15px',
                                    'backgroundColor': COLOR_GRIS_50}),
             html.Td(v25, style={'padding': '7px 10px', 'textAlign': 'center', 'fontWeight': '700',
                                  'color': COLOR_GRIS}),
@@ -1868,7 +1969,7 @@ def _tabla_detalle_estacion(estacion: str, row: pd.Series):
     ]
 
     return html.Div([
-        html.Div(estacion, style={'fontWeight': '800', 'color': COLOR_GRIS, 'fontSize': '16px',
+        html.Div(estacion, style={'fontWeight': '800', 'color': COLOR_GRIS, 'fontSize': '18px',
                                    'marginBottom': '10px'}),
         html.Div(
             html.Table([html.Thead(encabezado), html.Tbody(filas)],
@@ -1876,7 +1977,7 @@ def _tabla_detalle_estacion(estacion: str, row: pd.Series):
             style={'borderRadius': '10px', 'overflow': 'hidden', 'border': f'1px solid {COLOR_GRIS_100}'}
         ),
         html.Div(f'Tendencia 2025 vs 2026: {_tendencia_buena(row)}', style={
-            'color': COLOR_GRIS_MUTE, 'fontSize': '12px', 'marginTop': '10px'}),
+            'color': COLOR_GRIS_MUTE, 'fontSize': '14px', 'marginTop': '10px'}),
     ])
 
 
@@ -1904,7 +2005,7 @@ _KPI_CONTENEDOR = {
 }
 
 _KPI_TITULO = {
-    'color': COLOR_2026, 'fontSize': '12px', 'fontWeight': '800',
+    'color': COLOR_2026, 'fontSize': '14px', 'fontWeight': '800',
     'textTransform': 'uppercase', 'letterSpacing': '0.06em',
     'padding': '14px 20px 12px',
 }
@@ -1934,13 +2035,13 @@ def _kpi_dato(etiqueta: str, valor, color_punto: str = None):
             'marginRight': '7px', 'flexShrink': '0',
         }))
     encabezado.append(html.Span(etiqueta, style={
-        'color': COLOR_GRIS_MUTE, 'fontSize': '12px', 'fontWeight': '600',
+        'color': COLOR_GRIS_MUTE, 'fontSize': '14px', 'fontWeight': '600',
         'lineHeight': '1.3',
     }))
 
     return html.Div([
         html.Div(str(valor), style={
-            'color': COLOR_2026, 'fontWeight': '800', 'fontSize': '32px',
+            'color': COLOR_2026, 'fontWeight': '800', 'fontSize': '34px',
             'lineHeight': '1', 'marginBottom': '7px',
         }),
         html.Div(encabezado, style={
@@ -1958,11 +2059,11 @@ def _kpi_total(etiqueta: str, valor):
     """
     return html.Div([
         html.Span(etiqueta, style={
-            'color': COLOR_GRIS, 'fontSize': '13px', 'fontWeight': '700',
+            'color': COLOR_GRIS, 'fontSize': '15px', 'fontWeight': '700',
             'textTransform': 'uppercase', 'letterSpacing': '0.04em',
         }),
         html.Span(str(valor), style={
-            'color': COLOR_GRIS, 'fontWeight': '800', 'fontSize': '30px', 'lineHeight': '1',
+            'color': COLOR_GRIS, 'fontWeight': '800', 'fontSize': '32px', 'lineHeight': '1',
         }),
     ], style={**_KPI_PIE, 'display': 'flex', 'justifyContent': 'space-between',
               'alignItems': 'center', 'gap': '12px'})
@@ -2014,7 +2115,7 @@ def _kpi_activaciones_simaj(df_episodios: pd.DataFrame, col_2026: str):
             html.Div([
                 col_contingencias,
                 html.Div('Contingencias', style={
-                    'color': COLOR_GRIS_MUTE, 'fontSize': '11px', 'fontWeight': '600',
+                    'color': COLOR_GRIS_MUTE, 'fontSize': '13px', 'fontWeight': '600',
                     'textAlign': 'center', 'marginTop': '6px',
                 }),
             ], style={'flex': '1', 'minWidth': '0'}),
@@ -2089,7 +2190,7 @@ def _tabla_episodios(df: pd.DataFrame):
             html.Td(etiqueta, style={
                 **estilo, 'padding': '8px 14px', 'textAlign': 'left',
                 'paddingLeft': '34px' if es_sub else '14px',
-                'fontSize': '13px' if es_sub else '14px',
+                'fontSize': '15px' if es_sub else '14px',
                 'fontWeight': estilo.get('fontWeight', '400') if not es_sub else '400',
             }),
             html.Td(row[col_2025], style={**estilo, 'padding': '8px 14px', 'textAlign': 'center'}),
@@ -2282,13 +2383,13 @@ def _card_imeca(df_imeca: pd.DataFrame):
     def _bloque_anio(anio, color):
         valor = _get(anio, 'IMECA Máximo del año')
         return html.Div([
-            html.Div(anio, style={'color': color, 'fontWeight': '800', 'fontSize': '13px',
+            html.Div(anio, style={'color': color, 'fontWeight': '800', 'fontSize': '15px',
                                    'letterSpacing': '0.04em', 'textTransform': 'uppercase'}),
-            html.Div(str(valor), style={'color': COLOR_GRIS, 'fontSize': '40px', 'fontWeight': '800',
+            html.Div(str(valor), style={'color': COLOR_GRIS, 'fontSize': '42px', 'fontWeight': '800',
                                          'lineHeight': '1', 'margin': '4px 0'}),
             html.Div(_clasificar_imeca(valor), style={
                 'display': 'inline-block', 'backgroundColor': color, 'color': '#ffffff',
-                'borderRadius': '999px', 'padding': '2px 12px', 'fontSize': '11px', 'fontWeight': '700',
+                'borderRadius': '999px', 'padding': '2px 12px', 'fontSize': '13px', 'fontWeight': '700',
                 'marginBottom': '10px',
             }),
             html.Div([
@@ -2301,14 +2402,14 @@ def _card_imeca(df_imeca: pd.DataFrame):
                                  style={'color': COLOR_GRIS})]),
                 html.Div([html.Span('Hora  ', style={'color': COLOR_GRIS_MUTE}),
                           html.B(_get(anio, 'Hora'), style={'color': COLOR_GRIS})]),
-            ], style={'fontSize': '13px', 'display': 'grid', 'gap': '4px'}),
+            ], style={'fontSize': '15px', 'display': 'grid', 'gap': '4px'}),
         ], style={'flex': '1', 'padding': '18px 22px', 'borderLeft': f'4px solid {color}'})
 
     return html.Div([
         html.Div('IMECA Máximo Registrado', style={'color': COLOR_GRIS, 'fontWeight': '700',
-                                                     'fontSize': '15px', 'marginBottom': '4px'}),
+                                                     'fontSize': '17px', 'marginBottom': '4px'}),
         html.Div('Valor más alto del índice en el año, por contaminante y estación.',
-                  style={'color': COLOR_GRIS_MUTE, 'fontSize': '12px', 'marginBottom': '12px'}),
+                  style={'color': COLOR_GRIS_MUTE, 'fontSize': '14px', 'marginBottom': '12px'}),
         html.Div([_bloque_anio('2025', COLOR_2025), _bloque_anio('2026', COLOR_2026)],
                   style={'display': 'flex', 'border': f'1px solid {COLOR_GRIS_100}',
                          'borderRadius': '12px', 'overflow': 'hidden'}),
@@ -2373,7 +2474,7 @@ def _card_eventos_activos(eventos):
     if not eventos:
         cuerpo = html.Div(
             'Sin episodios activos por el momento.',
-            style={'color': COLOR_GRIS_MUTE, 'fontSize': '13px', 'textAlign': 'center',
+            style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'textAlign': 'center',
                    'padding': '18px 0'},
         )
     else:
@@ -2386,13 +2487,13 @@ def _card_eventos_activos(eventos):
                 html.Div('Emergencia atmosférica', style={
                     'backgroundColor': '#DC143C', 'color': '#ffffff', 'display': 'inline-block',
                     'padding': '4px 12px', 'borderRadius': '6px', 'fontWeight': '700',
-                    'fontSize': '13px', 'marginBottom': '6px',
+                    'fontSize': '15px', 'marginBottom': '6px',
                 }),
                 html.Div(ev['incidente'], style={
-                    'color': COLOR_GRIS, 'fontSize': '13px', 'fontWeight': '600',
+                    'color': COLOR_GRIS, 'fontSize': '15px', 'fontWeight': '600',
                 }) if ev['incidente'] else None,
                 html.Div(detalle, style={
-                    'color': COLOR_GRIS_MUTE, 'fontSize': '13px',
+                    'color': COLOR_GRIS_MUTE, 'fontSize': '15px',
                 }) if detalle else None,
             ], style={
                 'marginBottom': '0' if es_ultimo else '10px',
@@ -2440,7 +2541,7 @@ def _tabla_paginada(df: pd.DataFrame, id_tabla: str, columna_color: str = None,
         style_table={'overflowX': 'auto'},
         style_header={'backgroundColor': COLOR_GRIS, 'color': '#ffffff', 'fontWeight': '700',
                       'textAlign': 'left', 'padding': '8px 10px', 'border': 'none'},
-        style_cell={'padding': '8px 10px', 'fontFamily': 'Inter, Segoe UI, sans-serif', 'fontSize': '13px',
+        style_cell={'padding': '8px 10px', 'fontFamily': 'Inter, Segoe UI, sans-serif', 'fontSize': '15px',
                     'color': COLOR_GRIS, 'textAlign': 'left', 'minWidth': '90px', 'maxWidth': '240px',
                     'overflow': 'hidden', 'textOverflow': 'ellipsis', 'border': f'1px solid {COLOR_GRIS_100}'},
         style_data_conditional=style_data_conditional,
@@ -2473,7 +2574,7 @@ def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
     return html.Div([
         html.Div([
             html.Div('Registro de Alertas y Emergencias Atmosféricas 2026', style={
-                'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '16px'}),
+                'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px'}),
             _icono_descarga('btn-pdf-alertas'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
                   'marginBottom': '4px'}),
@@ -2513,7 +2614,7 @@ def _card_bitacora_episodios(df_episodios_2026_raw: pd.DataFrame):
     return html.Div([
         html.Div([
             html.Div('Registro de Episodios de Mala calidad del aire 2026', style={
-                'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '16px'}),
+                'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px'}),
             _icono_descarga('btn-pdf-episodios'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
                   'marginBottom': '4px'}),
@@ -2575,7 +2676,7 @@ def exportar_datos_dashboard(datos: dict, ruta: str = 'datos_dashboard.json') ->
 
     ruta_p = Path(ruta)
     ruta_p.write_text(json.dumps(paquete, ensure_ascii=False, indent=1), encoding='utf-8')
-    print(f"✔ Datos del dashboard exportados a {ruta_p.resolve()} "
+    print(f"OK: Datos del dashboard exportados a {ruta_p.resolve()} "
           f"({ruta_p.stat().st_size / 1024:.0f} KB)")
     return str(ruta_p.resolve())
 
@@ -2589,7 +2690,7 @@ def cargar_datos_dashboard(ruta: str = 'datos_dashboard.json') -> dict:
             f"run_full_pipeline(exportar_json='datos_dashboard.json').")
 
     paquete = json.loads(ruta_p.read_text(encoding='utf-8'))
-    print(f"📥 Datos del dashboard leídos de {ruta_p.name} "
+    print(f"Datos del dashboard leídos de {ruta_p.name} "
           f"(generados el {paquete.get('generado', '?')})")
 
     return {nombre: pd.DataFrame(filas)
@@ -2651,9 +2752,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
     episodios_card = html.Div([
         html.Div('Comparativo de Episodios de mala calidad del Aire 2025-2026', style={
-            'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '16px', 'marginBottom': '4px'}),
+            'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div('Episodios activados a partir de las mediciones registradas en las estaciones del SIMAJ.',
-                  style={'color': COLOR_GRIS_MUTE, 'fontSize': '13px', 'marginBottom': '14px'}),
+                  style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
             html.Div([_tabla_episodios(df_episodios)],
                      style={'flex': '1 1 420px', 'minWidth': '340px'}),
@@ -2683,10 +2784,10 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
     alertas_card = html.Div([
         html.Div('Comparativo de Alertas y Emergencias 2025-2026', style={
-            'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '16px', 'marginBottom': '4px'}),
+            'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div('Episodios derivados de eventos extraordinarios, como incendios u otras fuentes '
                   'que pueden afectar la calidad del aire.',
-                  style={'color': COLOR_GRIS_MUTE, 'fontSize': '13px', 'marginBottom': '14px'}),
+                  style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         _tabla_alertas(df_alertas),
     ], style={**CARD_STYLE, 'flex': '1', 'minWidth': '320px'})
 
@@ -2711,7 +2812,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         mapa_estatico_src = _fig_a_base64(fig_sin_mosaicos, ancho=1000, alto=520)
 
     if mapa_estatico_src:
-        print("✔ Imagen del mapa lista para el PDF.")
+        print("OK: Imagen del mapa lista para el PDF.")
 
     mapa_card = html.Div([
         html.Div([
@@ -2720,7 +2821,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             ' vs ',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
             ' por estación de monitoreo',
-        ], style={'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '20px', 'marginBottom': '14px'}),
+        ], style={'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '22px', 'marginBottom': '14px'}),
         html.Div([
             html.Div([
                 dcc.Graph(id='mapa-grafico', figure=fig_mapa),
@@ -2741,9 +2842,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 html.Div([
                     html.Div('Detalle por estación', style={
                         'color': COLOR_GRIS, 'fontWeight': '700',
-                        'fontSize': '14px', 'marginBottom': '4px'}),
+                        'fontSize': '16px', 'marginBottom': '4px'}),
                     html.Div('Categoría acorde con el Índice Aire y Salud de la NOM-172-SEMARNAT-2023',
-                             style={'color': COLOR_GRIS_MUTE, 'fontSize': '11px',
+                             style={'color': COLOR_GRIS_MUTE, 'fontSize': '13px',
                                     'lineHeight': '1.45'}),
                 ], style={'borderBottom': f'1px solid {COLOR_GRIS_100}',
                           'paddingBottom': '12px', 'marginBottom': '4px'}),
@@ -2760,7 +2861,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             html.Span("azul marino", style={'color': COLOR_2025, 'fontWeight': '700'}),
             " = tuvo más (empeora); entre más grande la burbuja, mayor el cambio. "
             "Pasa el cursor sobre una estación para ver el comparativo completo en el panel de la derecha.",
-        ], style={'color': COLOR_MUTED, 'fontSize': '12px', 'marginTop': '14px', 'marginBottom': '0'}),
+        ], style={'color': COLOR_MUTED, 'fontSize': '14px', 'marginTop': '14px', 'marginBottom': '0'}),
     ], style={**CARD_STYLE, 'marginBottom': '20px'})
 
     bitacora_alertas_card, df_bitacora_alertas = _card_bitacora_alertas(df_alertas_2026_raw)
@@ -3041,7 +3142,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
             // Texturas por contaminante: el color queda reservado para la
             // severidad, así que los tres se distinguen por trama.
-            function dibujar(idDiv, cfg) {
+            // idxLeyenda elige de qué año toma su tono el cuadrito de la
+            // leyenda: 0 = 2025 (azul marino), 1 = 2026 (aqua).
+            function dibujar(idDiv, cfg, idxLeyenda) {
                 const el = document.getElementById(idDiv);
                 if (!el) { return; }
 
@@ -3068,11 +3171,12 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                         // va rotulado, así que el dato sigue siendo exacto.
                         barMinHeight: 20,
                         // Este itemStyle es el que toma el cuadrito de la
-                        // leyenda: lleva el tono del año actual, para que la
-                        // leyenda se lea de claro a oscuro igual que la barra.
+                        // leyenda: lleva el tono del año que indique
+                        // idxLeyenda, para que la leyenda se lea de claro a
+                        // oscuro igual que la barra de ese año.
                         itemStyle: {
-                            color: cfg.escalas_anio[1][i],
-                            borderColor: cfg.colores_anio[1],
+                            color: cfg.escalas_anio[idxLeyenda][i],
+                            borderColor: cfg.colores_anio[idxLeyenda],
                             borderWidth: 1.2,
                             borderRadius: 4
                         },
@@ -3090,8 +3194,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                 return '{n|' + s.nombre + '}\\n{v|' + p.value + '}';
                             },
                             rich: {
-                                n: {fontSize: 9, color: '""" + COLOR_GRIS_MUTE + """', lineHeight: 13, align: 'center'},
-                                v: {fontSize: 14, fontWeight: 'bold', color: '""" + COLOR_GRIS + """', align: 'center'}
+                                n: {fontSize: 11, color: '""" + COLOR_GRIS_MUTE + """', lineHeight: 13, align: 'center'},
+                                v: {fontSize: 16, fontWeight: 'bold', color: '""" + COLOR_GRIS + """', align: 'center'}
                             }
                         },
                         labelLayout: {hideOverlap: true},
@@ -3116,7 +3220,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                         show: true,
                         position: 'top',
                         formatter: function (p) { return cfg.totales[p.dataIndex]; },
-                        fontSize: 15,
+                        fontSize: 17,
                         fontWeight: 'bold',
                         backgroundColor: 'transparent',
                         borderWidth: 0,
@@ -3150,7 +3254,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                         text: cfg.titulo,
                         left: 'center',
                         top: 4,
-                        textStyle: {fontSize: 13, fontWeight: 'bold', color: cfg.color_titulo}
+                        textStyle: {fontSize: 15, fontWeight: 'bold', color: cfg.color_titulo}
                     },
                     grid: {left: 6, right: 6, top: 64, bottom: 46, containLabel: true},
                     tooltip: {
@@ -3170,7 +3274,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                         itemWidth: 16,
                         itemHeight: 14,
                         itemGap: 12,
-                        textStyle: {fontSize: 11, color: '""" + COLOR_GRIS_MUTE + """'},
+                        textStyle: {fontSize: 13, color: '""" + COLOR_GRIS_MUTE + """'},
                         data: cfg.series.map(function (s) { return s.nombre; })
                     },
                     xAxis: {
@@ -3179,7 +3283,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                         axisLine: {show: false},
                         axisTick: {show: false},
                         axisLabel: {
-                            fontSize: 12, fontWeight: 'bold',
+                            fontSize: 14, fontWeight: 'bold',
                             // Cada año en su color, igual que el encabezado
                             // de la tabla comparativa.
                             color: function (valor, indice) {
@@ -3195,8 +3299,10 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 chart.resize();
             }
 
-            dibujar('echart-precontingencias', datos.precontingencias);
-            dibujar('echart-contingencias-f1', datos.contingencias_f1);
+            // Precontingencias con la leyenda en el azul de 2025 y Fase I con
+            // la de 2026, para comparar las dos lecturas lado a lado.
+            dibujar('echart-precontingencias', datos.precontingencias, 0);
+            dibujar('echart-contingencias-f1', datos.contingencias_f1, 1);
 
             // ECharts no se reajusta solo al cambiar el tamaño de la ventana:
             // conserva las medidas que tenía al inicializarse y el SVG se
@@ -3474,11 +3580,14 @@ def run_full_pipeline(anio_actual: Optional[int] = None, lanzar_dashboard: bool 
     if resultado is None:
         raise RuntimeError("La validación ENVISTA falló. Proceso cancelado.")
 
-    ejecutar_pipeline_ias(archivo_bd, spreadsheet=spreadsheet_destino, hoja_procesada="Procesada")
+    # La tabla diaria se conserva: trae la FECHA de cada día calculado, que es
+    # lo que permite sumar a 'Analitica' solo los días que aún no se sumaron.
+    dfd_all = ejecutar_pipeline_ias(archivo_bd, spreadsheet=spreadsheet_destino,
+                                     hoja_procesada="Procesada")
 
     if anio_actual is None:
         anio_actual = int(input("Año actual: "))
-    acumulado = actualizar_acumulado(spreadsheet_destino, anio_actual)
+    acumulado = actualizar_acumulado(spreadsheet_destino, anio_actual, dfd_all=dfd_all)
 
     print("\n========== 2) EPISODIOS + IMECA MÁXIMO ==========")
     sh_2025, sh_2026 = run_episodios(gc, spreadsheet_destino, URL_FUENTE_2025, URL_FUENTE_2026)
@@ -3503,7 +3612,7 @@ def run_full_pipeline(anio_actual: Optional[int] = None, lanzar_dashboard: bool 
             # jupyter_mode solo existe dentro de un notebook; fuera truena.
             app.run(jupyter_mode='external', debug=False)
         else:
-            print(f"\n🚀 Dashboard en http://127.0.0.1:{puerto}  (Ctrl+C para detener)")
+            print(f"\nDashboard en http://127.0.0.1:{puerto}  (Ctrl+C para detener)")
             app.run(host='0.0.0.0', port=puerto, debug=False)
 
     return acumulado
