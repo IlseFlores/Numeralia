@@ -21,6 +21,7 @@ COLOR_CARD   = '#ffffff'
 COLOR_BORDER = '#e4e7ec'
 COLOR_TEXT   = '#1a1d24'
 COLOR_MUTED  = '#6b7280'
+COLOR_NEGRO  = '#000000'   # rótulos que van en negro pleno, no en el casi-negro
 
 # ── Paleta de marca ─────────────────────────────────────────────────────────
 # Solo estos 3 colores; el resto son tintes/sombras derivados de ellos.
@@ -35,6 +36,12 @@ COLOR_2026 = COLOR_ANIO_ACTUAL
 
 COLOR_GOOD = COLOR_ANIO_ACTUAL  # mapa: mejora (menos días de mala calidad)
 COLOR_BAD  = COLOR_ANIO_PREVIO  # mapa: empeora (más días de mala calidad)
+
+# Azul del año previo SOLO en las barras apiladas de episodios. Va aparte de
+# COLOR_ANIO_PREVIO porque el azul marino, al aclararse en tintes para el
+# degradado, tira a morado — y en esta gráfica el degradado es justo lo que
+# se mira. El resto del reporte sigue con el azul marino de marca.
+COLOR_EPISODIOS_ANIO_PREVIO = '#32629B'
 
 COLOR_GRIS_50   = '#f4f5f5'
 COLOR_GRIS_100  = '#e6e8e9'
@@ -107,6 +114,21 @@ def escala_serie(color_hex: str, n: int = 3, luminancia_minima: float = 0.6) -> 
 # Escalas de cada año, en el orden en que se apilan los contaminantes.
 ESCALA_ANIO_PREVIO = escala_serie(COLOR_ANIO_PREVIO)
 ESCALA_ANIO_ACTUAL = escala_serie(COLOR_ANIO_ACTUAL)
+
+# Escala del año previo en las barras de episodios, con su azul propio.
+ESCALA_EPISODIOS_ANIO_PREVIO = escala_serie(COLOR_EPISODIOS_ANIO_PREVIO)
+
+# Escala del año actual en esas mismas barras, más clara que la general. En
+# esa gráfica el número de cada segmento va en el color pleno del año, y con
+# la escala normal el tono más oscuro ES ese mismo color: el número quedaba
+# aqua sobre aqua, invisible.
+#
+# El 0.87 no es arbitrario: deja el relleno más oscuro 0.25 de luminancia por
+# encima del aqua del número, la misma holgura que el azul del año previo
+# tiene contra su propio relleno. Así las dos barras se leen igual de bien.
+# El costo es que los tres tonos del año actual quedan más parecidos entre
+# sí; la leyenda es la que carga con distinguir los contaminantes.
+ESCALA_EPISODIOS_ANIO_ACTUAL = escala_serie(COLOR_ANIO_ACTUAL, luminancia_minima=0.87)
 
 # ── Severidad de episodios ──────────────────────────────────────────────────
 # Precontingencia -> Fase I -> Fase II -> Fase III.

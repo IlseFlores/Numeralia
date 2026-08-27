@@ -1499,11 +1499,13 @@ from numeralia.reporte.tema import (                              # noqa: E402
     COLOR_GRIS_100,
     COLOR_GRIS_MUTE,
     COLOR_MUTED,
+    COLOR_NEGRO,
     COLOR_TEXT,
     COLOR_2025,
     COLOR_2026,
-    ESCALA_ANIO_ACTUAL,
-    ESCALA_ANIO_PREVIO,
+    COLOR_EPISODIOS_ANIO_PREVIO,
+    ESCALA_EPISODIOS_ANIO_ACTUAL,
+    ESCALA_EPISODIOS_ANIO_PREVIO,
     PLOTLY_TEMPLATE,
     SEVERIDAD_TINTES as _SEVERIDAD_TINTES,
 )
@@ -2224,10 +2226,11 @@ def _datos_grafica_episodios(df: pd.DataFrame, col_2025: str, col_2026: str,
         'anios': ['2025', '2026'],
         # Colores de cada año, en el mismo orden que 'anios'. Las barras y los
         # totales se pintan con estos; la severidad se queda en el título.
-        'colores_anio': [COLOR_2025, COLOR_2026],
+        # El año previo usa aquí su azul propio, no el azul marino de marca.
+        'colores_anio': [COLOR_EPISODIOS_ANIO_PREVIO, COLOR_2026],
         # Un tono por contaminante, dentro del color de cada año. El índice
         # de la serie elige el tono; el del año elige la escala.
-        'escalas_anio': [ESCALA_ANIO_PREVIO, ESCALA_ANIO_ACTUAL],
+        'escalas_anio': [ESCALA_EPISODIOS_ANIO_PREVIO, ESCALA_EPISODIOS_ANIO_ACTUAL],
         'series': [
             {'nombre': c,
              'datos': [datos_25.get(c, 0), datos_26.get(c, 0)]}
@@ -3050,9 +3053,14 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                 }
                                 return '{n|' + s.nombre + '}\\n{v|' + p.value + '}';
                             },
+                            // El nombre del contaminante va en negro y el
+                            // número en el color de su año. El color del
+                            // número se reajusta por dato más abajo, porque
+                            // aquí solo se conoce el año de la leyenda, no el
+                            // de cada barra.
                             rich: {
-                                n: {fontSize: 11, color: '""" + COLOR_GRIS_MUTE + """', lineHeight: 13, align: 'center'},
-                                v: {fontSize: 16, fontWeight: 'bold', color: '""" + COLOR_GRIS + """', align: 'center'}
+                                n: {fontSize: 11, color: '""" + COLOR_NEGRO + """', lineHeight: 13, align: 'center'},
+                                v: {fontSize: 16, fontWeight: 'bold', color: cfg.colores_anio[idxLeyenda], align: 'center'}
                             }
                         },
                         labelLayout: {hideOverlap: true},
@@ -3101,6 +3109,15 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                             itemStyle: {
                                 color: cfg.escalas_anio[j][i],
                                 borderColor: cfg.colores_anio[j]
+                            },
+                            // El número toma el color del año de SU barra, no
+                            // el de la leyenda: así el 2025 se lee en azul y
+                            // el 2026 en aqua dentro de la misma gráfica.
+                            label: {
+                                rich: {
+                                    n: {fontSize: 11, color: '""" + COLOR_NEGRO + """', lineHeight: 13, align: 'center'},
+                                    v: {fontSize: 16, fontWeight: 'bold', color: cfg.colores_anio[j], align: 'center'}
+                                }
                             }
                         };
                     });
