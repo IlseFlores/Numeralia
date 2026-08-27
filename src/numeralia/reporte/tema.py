@@ -56,9 +56,18 @@ def tinte(color_hex: str, proporcion: float = 0.12) -> str:
     return '#' + ''.join(f'{c:02x}' for c in mezcla)
 
 
-# Rellenos claros de cada año, derivados de los colores de marca.
-COLOR_ANIO_PREVIO_TINTE = tinte(COLOR_ANIO_PREVIO)
-COLOR_ANIO_ACTUAL_TINTE = tinte(COLOR_ANIO_ACTUAL)
+
+def hex_a_rgb(color_hex: str) -> tuple:
+    """
+    Convierte '#465055' a (70, 80, 85).
+
+    fpdf2 pide los colores en tripletas de enteros, así que sin esto los
+    colores del PDF terminan escritos a mano y se desincronizan del tema:
+    fue exactamente lo que pasó cuando el gris tenue cambió de tono y el PDF
+    se quedó con el viejo.
+    """
+    crudo = color_hex.lstrip('#')
+    return tuple(int(crudo[i:i + 2], 16) for i in (0, 2, 4))
 
 
 def _luminancia(color_hex: str) -> float:
@@ -66,26 +75,6 @@ def _luminancia(color_hex: str) -> float:
     crudo = color_hex.lstrip('#')
     r, g, b = (int(crudo[i:i + 2], 16) for i in (0, 2, 4))
     return (0.299 * r + 0.587 * g + 0.114 * b) / 255
-
-
-def color_textura(color_hex: str, luminancia_minima: float = 0.6) -> str:
-    """
-    Aclara un color solo lo necesario para que sirva de trama detrás de texto.
-
-    Una trama diagonal densa en un color oscuro se traga la etiqueta que va
-    encima. Los colores que ya son claros (el aqua del año actual) se
-    devuelven sin tocar; los oscuros (el azul marino) se mezclan con blanco
-    hasta alcanzar la luminancia mínima.
-    """
-    lum = _luminancia(color_hex)
-    if lum >= luminancia_minima:
-        return color_hex
-    return tinte(color_hex, (1 - luminancia_minima) / (1 - lum))
-
-
-# Color de la trama de cada año: legible detrás de las etiquetas de la barra.
-COLOR_ANIO_PREVIO_TEXTURA = color_textura(COLOR_ANIO_PREVIO)
-COLOR_ANIO_ACTUAL_TEXTURA = color_textura(COLOR_ANIO_ACTUAL)
 
 
 def escala_serie(color_hex: str, n: int = 3, luminancia_minima: float = 0.6) -> list:
@@ -118,21 +107,6 @@ def escala_serie(color_hex: str, n: int = 3, luminancia_minima: float = 0.6) -> 
 # Escalas de cada año, en el orden en que se apilan los contaminantes.
 ESCALA_ANIO_PREVIO = escala_serie(COLOR_ANIO_PREVIO)
 ESCALA_ANIO_ACTUAL = escala_serie(COLOR_ANIO_ACTUAL)
-
-# ── Colores por categoría del IAS ───────────────────────────────────────────
-# Nota: hoy el dashboard no los usa (dibuja por año, no por categoría). Se
-# conservan porque son la codificación oficial de la NOM-172.
-IAS_COLORS = {
-    "Buena": "#2ecc71", "Aceptable": "#f1c40f",
-    "Mala":  "#e67e22", "Muy mala":  "#e74c3c",
-    "Extremadamente mala": "#8e44ad",
-}
-NOM_COLORS = {"Si": "#2ecc71", "No": "#e74c3c"}
-
-# Paleta institucional previa. Sin uso actual en el reporte.
-AZUL_SEMADET    = '#4DC283'
-NARANJA_SEMADET = '#ff8300'
-GRIS_SEMADET    = '#465055'
 
 # ── Severidad de episodios ──────────────────────────────────────────────────
 # Precontingencia -> Fase I -> Fase II -> Fase III.

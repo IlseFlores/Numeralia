@@ -21,6 +21,9 @@ dependencies = [
     "python-dotenv==1.2.3",
 ]
 
+[project.scripts]
+numeralia = "numeralia.cli:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 

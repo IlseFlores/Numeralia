@@ -112,6 +112,12 @@ class Config:
     puerto_dashboard: int = 8050
     carpeta_logos: str = 'logos'
     anio_criterio_nom: int = 2026
+    # Cada cuánto vuelve a leer Sheets el dashboard. Iban en 20 segundos, que
+    # con la cuota de la API se traduce en errores 429: son 6 lecturas por
+    # minuto POR PESTAÑA abierta. Los episodios activos cambian en escala de
+    # horas y el resumen mensual, de días.
+    refresco_eventos_seg: int = 300
+    refresco_mensual_seg: int = 1800
 
     @property
     def anio_previo(self) -> int:
@@ -161,6 +167,8 @@ class Config:
             puerto_dashboard=int(os.getenv('NUMERALIA_PUERTO', '8050')),
             carpeta_logos=os.getenv('NUMERALIA_CARPETA_LOGOS', 'logos'),
             anio_criterio_nom=int(os.getenv('NUMERALIA_CRITERIO_NOM', '2026')),
+            refresco_eventos_seg=int(os.getenv('NUMERALIA_REFRESCO_EVENTOS', '300')),
+            refresco_mensual_seg=int(os.getenv('NUMERALIA_REFRESCO_MENSUAL', '1800')),
         )
 
     def faltantes(self) -> list:

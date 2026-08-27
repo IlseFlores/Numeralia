@@ -8,7 +8,6 @@ from numeralia.reporte.tema import (
     ESCALA_ANIO_ACTUAL,
     ESCALA_ANIO_PREVIO,
     _luminancia,
-    color_textura,
     escala_serie,
     tinte,
 )
@@ -44,28 +43,6 @@ class TestLuminancia:
         assert _luminancia(COLOR_ANIO_ACTUAL) > 0.5
 
 
-class TestColorTextura:
-    def test_un_color_ya_claro_no_se_toca(self):
-        # El aqua del año actual se lee bien detrás de una etiqueta tal cual.
-        assert color_textura(COLOR_ANIO_ACTUAL) == COLOR_ANIO_ACTUAL
-
-    def test_un_color_oscuro_se_aclara(self):
-        # El azul marino en pleno se traga el texto que lleva encima.
-        assert color_textura(COLOR_ANIO_PREVIO) != COLOR_ANIO_PREVIO
-
-    def test_alcanza_la_luminancia_minima(self):
-        for color in ("#000000", "#191970", "#8B0000"):
-            assert _luminancia(color_textura(color, 0.6)) == pytest.approx(0.6, abs=0.02)
-
-
-    def test_conserva_el_matiz(self):
-        # Aclarar no debe volver gris el color: el azul sigue siendo el canal
-        # más alto del azul marino aclarado.
-        crudo = color_textura(COLOR_ANIO_PREVIO).lstrip("#")
-        r, g, b = (int(crudo[i:i + 2], 16) for i in (0, 2, 4))
-        assert b > r and b > g
-
-
 class TestEscalaSerie:
     """La escala reemplazó a las tramas para distinguir los contaminantes."""
 
@@ -92,11 +69,22 @@ class TestEscalaSerie:
             for a, b in zip(lums, lums[1:]):
                 assert a - b >= 0.10
 
-    def test_el_tono_mas_oscuro_respeta_el_tope(self):
-        assert escala_serie(COLOR_ANIO_ACTUAL, n=3)[-1] == color_textura(COLOR_ANIO_ACTUAL).lower()
+    def test_un_color_ya_claro_llega_hasta_su_tono_pleno(self):
+        # El aqua tiene luminancia 0.62, por encima del mínimo: su tono más
+        # oscuro puede ser el color tal cual.
+        assert escala_serie(COLOR_ANIO_ACTUAL, n=3)[-1] == COLOR_ANIO_ACTUAL.lower()
+
+    def test_un_color_oscuro_se_topa_antes_de_llegar_al_pleno(self):
+        # El azul marino no: su tono más oscuro se queda en la luminancia
+        # mínima para no tragarse la etiqueta de encima.
+        mas_oscuro = escala_serie(COLOR_ANIO_PREVIO, n=3)[-1]
+        assert mas_oscuro != COLOR_ANIO_PREVIO.lower()
+        assert _luminancia(mas_oscuro) == pytest.approx(0.6, abs=0.02)
 
     def test_un_solo_tono_es_el_mas_oscuro_permitido(self):
-        assert escala_serie("#191970", n=1) == [color_textura("#191970")]
+        solo = escala_serie("#191970", n=1)
+        assert len(solo) == 1
+        assert _luminancia(solo[0]) == pytest.approx(0.6, abs=0.02)
 
     def test_cero_tonos_es_un_error(self):
         with pytest.raises(ValueError):

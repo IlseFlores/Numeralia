@@ -6,7 +6,11 @@ Sheets y levanta un dashboard web local con el mapa comparativo de estaciones.
 
 Este archivo cubre la instalación y ejecución **como script `.py`** (fuera de
 Colab). Si vas a usarlo en Google Colab, las instrucciones están en el
-encabezado de [`pipeline_completo.py`](pipeline_completo.py).
+encabezado de [`main.py`](main.py).
+
+> **¿Vas a seguir el refactor?** Empieza por
+> **[HOJA_DE_RUTA.md](HOJA_DE_RUTA.md)**: qué falta, en qué orden, cómo
+> verificar cada paso y con qué trampas ya nos topamos.
 
 ## Requisitos
 
@@ -101,8 +105,17 @@ avisa la ruta exacta donde los buscó).
 Con el entorno virtual activado:
 
 ```bash
-python pipeline_completo.py          # usa el año actual
-python pipeline_completo.py 2026     # fuerza un año específico
+python -m numeralia          # usa el año actual
+python -m numeralia 2025     # fuerza un año específico
+```
+
+Opciones:
+
+```bash
+python -m numeralia --help
+python -m numeralia 2025 --sin-dashboard          # solo datos, sin abrir el dashboard
+python -m numeralia --puerto 8060                 # otro puerto
+python -m numeralia --exportar-json datos.json    # vuelca los datos del dashboard
 ```
 
 Esto valida la hoja Cruda, calcula IAS/NOM, escribe Procesada, acumula en
@@ -117,22 +130,23 @@ Corre desatendido (sin preguntar nada por consola) — el año se toma del
 sistema o del argumento, así que también puede lanzarse desde una tarea
 programada.
 
-**En Windows**, la consola usa `cp1252` y el script imprime emojis en los
-mensajes de avance, así que arranca con `UnicodeEncodeError` si no fuerzas
-UTF-8:
+`python main.py` sigue funcionando y acepta los mismos
+argumentos: delega en el mismo punto de entrada.
 
-```bash
-PYTHONUTF8=1 python pipeline_completo.py
-```
+**Nota de Windows**: ya no hace falta `PYTHONUTF8=1`. El punto de entrada
+pone la salida en UTF-8 por su cuenta, que es lo que antes hacía falta para
+que los emojis de los mensajes de avance no tumbaran la corrida con
+`UnicodeEncodeError` en consolas cp1252.
 
-En PowerShell es `$env:PYTHONUTF8 = "1"` antes de lanzarlo. En una tarea
-programada, defínelo como variable de entorno del sistema.
+También hay un comando `numeralia` que la instalación registra. En equipos
+con Control de aplicaciones de Windows activo, ese ejecutable puede quedar
+bloqueado por no estar firmado; en ese caso usa `python -m numeralia`, que
+hace exactamente lo mismo.
 
-Para correr solo el pipeline de datos sin abrir el dashboard, desde una
-sesión de Python:
+Para correr solo el pipeline de datos desde una sesión de Python:
 
 ```python
-from pipeline_completo import run_full_pipeline
+from main import run_full_pipeline
 acumulado = run_full_pipeline(lanzar_dashboard=False)
 ```
 
@@ -147,50 +161,103 @@ En Windows, `PYTHONUTF8=1 python -m pytest`.
 Los tests cubren la lógica normativa: cortes del IAS, NowCast, redondeo y
 cumplimiento diario. Hay además dos suites de seguridad del refactor:
 
-- `test_equivalencia.py` compara el paquete contra `pipeline_completo.py`.
+- `test_equivalencia.py` compara el paquete contra `main.py`.
 - `test_golden.py` compara contra una salida capturada **antes** de empezar
   a mover código (`tests/datos/golden_prerefactor.pkl`). Ese archivo debe
   versionarse: es la referencia de que los números del reporte no cambiaron.
 
 ## Estructura de archivos
 
-El proyecto está a medio migrar de un solo script a un paquete por capas.
-`pipeline_completo.py` sigue siendo el punto de entrada, pero la lógica de
-cálculo y la configuración ya viven en `src/numeralia/`.
+**El punto de entrada es `src/numeralia/cli.py`.** Es lo que corre
+`python -m numeralia`; todo lo demás es biblioteca que él usa.
+
+El proyecto está a medio migrar de un solo script a un paquete por capas, así
+que la orquestación y el dashboard todavía viven en `main.py`, en
+la raíz. El CLI le delega mientras dura la migración.
 
 ```
 .
-├── pipeline_completo.py       # Punto de entrada (en migración)
-├── pyproject.toml             # Paquete y dependencias
-├── requirements.txt           # Dependencias sueltas (despliegue)
-├── .env.example               # Plantilla de configuración
-├── .env                       # Tus credenciales reales (NO se comparte)
-├── logos/                     # Logos del encabezado (opcional)
 ├── src/numeralia/
-│   ├── config.py              # ÚNICO lugar que lee el entorno
-│   ├── dominio/               # Cálculo puro — no importa gspread ni dash
-│   │   ├── nom172.py          #   rangos del IAS y cumplimiento NOM
-│   │   ├── ias.py             #   índice diario y contaminante dominante
-│   │   ├── nowcast.py         #   NowCast y redondeo comercial
-│   │   └── suficiencia.py     #   criterios de datos suficientes
+│   ├── cli.py             ← PUNTO DE ENTRADA. Argumentos, UTF-8, arranque.
+│   ├── __main__.py           Hace posible `python -m numeralia`
+│   ├── config.py             ÚNICO lugar que lee el entorno
+│   ├── consola.py            Salida en UTF-8 (consolas cp1252 de Windows)
+│   ├── cache.py              Caché con vencimiento para lecturas de Sheets
+│   ├── dominio/              Cálculo puro — no importa gspread ni dash
+│   │   ├── nom172.py           rangos del IAS y cumplimiento NOM
+│   │   ├── ias.py              índice diario y contaminante dominante
+│   │   ├── nowcast.py          NowCast y redondeo comercial
+│   │   └── suficiencia.py      criterios de datos suficientes
 │   └── reporte/
-│       └── tema.py            # Paleta, plantilla Plotly, estilos
+│       ├── tema.py           Paleta, plantilla Plotly, medidas
+│       └── pdf.py            Bitácoras en PDF (fpdf2)
+│
+├── main.py                ← Resto sin migrar: orquestación, validador,
+│                            lectura de Sheets y dashboard. Se encoge
+│                            conforme avanzan los pasos de abajo.
+│
+├── HOJA_DE_RUTA.md           Qué falta migrar, en qué orden y cómo
+├── pyproject.toml            Paquete, dependencias y comando `numeralia`
+├── requirements.txt          Dependencias sueltas (despliegue)
+├── .env.example              Plantilla de configuración
+├── .env                      Tus credenciales reales (NO se comparte)
+├── logos/                    Logos del encabezado (opcional)
 ├── tests/
 └── venv/
 ```
 
-La regla que sostiene la estructura: **`dominio/` no importa `gspread` ni
-`dash`**. Si cambia la norma, se toca un módulo; si cambia Google o el
-dashboard, no se toca nada del cálculo.
+Dos reglas sostienen la estructura:
+
+1. **`dominio/` no importa `gspread` ni `dash`.** Si cambia la norma, se toca
+   un módulo; si cambia Google o el dashboard, no se toca nada del cálculo.
+2. **Las dependencias van del CLI hacia adentro.** La única excepción es el
+   puente temporal `cli.py → main.py`, que desaparece cuando la
+   orquestación se mude al paquete.
 
 ### Qué falta migrar
 
-1. `reporte/` — sacar el PDF de dentro de `build_dash_app` (780 líneas) y
-   partir layout, componentes y callbacks.
+Los pasos concretos, con sus trampas, están en
+**[HOJA_DE_RUTA.md](HOJA_DE_RUTA.md)** — léelo antes de tocar código. Aquí va
+solo el resumen:
+
+1. `reporte/` — el PDF ya salió (`pdf.py`); falta partir `build_dash_app`
+   (740 líneas) en layout, componentes y callbacks.
 2. `ingesta/` — `autenticar`, `ValidadorCalidadAire`, lectura de Sheets.
 3. `transformacion/` — tabla diaria, numeralia, episodios, alertas.
-4. Eliminar los años escritos a mano: quedan literales `2025`/`2026` en la
-   capa de reporte que deben salir de `Config.anio` y `Config.anio_previo`.
+4. Mover `run_full_pipeline` al paquete y quitar el puente de `cli.py`.
+5. Eliminar los años escritos a mano: quedan **199 literales** `2025`/`2026`
+   en la capa de reporte que deben salir de `Config.anio` y
+   `Config.anio_previo`.
+6. Implementar el cumplimiento **anual** de la NOM-172. Los límites están
+   capturados en `NOM_PRESETS["…"]["LIMITES_ANUALES"]` pero ningún cálculo
+   los usa: hoy solo se evalúa el cumplimiento diario.
+
+## La hoja `Acumuladas` (no la borres)
+
+`Analitica` guarda una suma acumulada, así que sumarle el mismo día dos veces
+inflaría las cifras. Para que volver a correr el pipeline sea inofensivo, cada
+fecha ya sumada queda registrada en una pestaña llamada **`Acumuladas`** de la
+hoja destino.
+
+El pipeline la crea solo la primera vez y avisa por consola. Si la borras, la
+siguiente corrida la volverá a crear vacía y **sumará de nuevo todos los días**,
+porque asume que no hay nada acumulado.
+
+## Refresco del dashboard
+
+Dos fichas se releen solas desde Google Sheets mientras el dashboard está
+abierto. Los intervalos son configurables porque afectan directamente la cuota
+de la API de Sheets:
+
+| Variable | Por omisión | Qué refresca |
+|---|---|---|
+| `NUMERALIA_REFRESCO_EVENTOS` | 300 s (5 min) | Ficha de episodios activos |
+| `NUMERALIA_REFRESCO_MENSUAL` | 1800 s (30 min) | Serie mensual acumulada |
+
+Iban en 20 segundos, que son 6 lecturas por minuto **por pestaña abierta** y
+producían errores `429 Quota exceeded`. Además, las lecturas pasan por una
+caché compartida (`numeralia/cache.py`): varias pestañas abiertas a la vez
+consumen una sola lectura, no una cada una.
 
 ## Problemas comunes
 
@@ -202,6 +269,14 @@ dashboard, no se toca nada del cálculo.
 - **El mapa del dashboard no muestra las estaciones**: verifica que la hoja
   `Analitica` tenga las columnas `Latitud` y `Longitud` con valores
   numéricos por estación.
+- **`429 Quota exceeded` en la consola**: demasiadas lecturas a Sheets en poco
+  tiempo. Suele pasar al reiniciar el dashboard varias veces seguidas. Se pasa
+  solo; si es constante, sube `NUMERALIA_REFRESCO_EVENTOS` y
+  `NUMERALIA_REFRESCO_MENSUAL`.
+- **Las cifras de `Analitica` se ven infladas**: probablemente se corrió el
+  pipeline varias veces con una versión anterior a la hoja de control
+  `Acumuladas`. Restaura la hoja desde el historial de versiones de Google
+  Sheets.
 - **El mapa no aparece en el PDF**: instala `kaleido`
   (`pip install kaleido`). Sin él, el resto del PDF se genera igual, solo
   sin la foto del mapa.

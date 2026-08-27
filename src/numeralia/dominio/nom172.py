@@ -95,6 +95,11 @@ def redondear_por_nom(value, pol, kind=None):
 # ── Límites de cumplimiento, por año de entrada en vigor ────────────────────
 # La NOM-172 endurece sus límites por etapas. El preset elegido decide contra
 # qué valores se evalúa el cumplimiento.
+#
+# OJO: solo se evalúa el cumplimiento DIARIO (NOM_LIMITS). Los valores de
+# LIMITES_ANUALES están capturados de la norma pero ningún cálculo los usa
+# todavía: falta implementar la evaluación anual, que además exige el
+# criterio de suficiencia de suf_min_yearly (274/275 días válidos).
 NOM_PRESETS: Dict[int, Dict[str, Dict]] = {
     2024: {
         "NOM_LIMITS": {

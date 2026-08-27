@@ -3,10 +3,10 @@ Equivalencia entre el dominio extraído y el script original.
 
 Esta es la red de seguridad del refactor: comprueba que
 ``numeralia.dominio`` produce exactamente los mismos números que
-``pipeline_completo.py``. Mientras estas pruebas pasen, mover código no
+``main.py``. Mientras estas pruebas pasen, mover código no
 cambió ningún resultado del reporte.
 
-Cuando la migración termine y ``pipeline_completo.py` desaparezca, este
+Cuando la migración termine y ``main.py` desaparezca, este
 archivo se borra con él.
 """
 
@@ -17,8 +17,8 @@ import pytest
 from numeralia.dominio import ias, nom172, nowcast
 
 original = pytest.importorskip(
-    "pipeline_completo",
-    reason="pipeline_completo.py no está disponible; el refactor ya terminó.",
+    "main",
+    reason="main.py no está disponible; el refactor ya terminó.",
 )
 
 
@@ -120,8 +120,10 @@ class TestConstantes:
         assert nom172.NOM_PRESETS == original.NOM_PRESETS
 
     def test_limites_activos_intactos(self):
+        # LIMITES_ANUALES ya no se reexporta desde el script (nada lo usaba);
+        # su valor sigue cubierto por test_presets_intactos, que compara
+        # NOM_PRESETS completo.
         assert nom172.NOM_LIMITS == original.NOM_LIMITS
-        assert nom172.LIMITES_ANUALES == original.LIMITES_ANUALES
 
     def test_fuentes_del_ias_intactas(self):
         assert ias.IAS_SOURCE == original.IAS_SOURCE

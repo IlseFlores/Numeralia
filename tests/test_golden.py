@@ -2,12 +2,12 @@
 Comparación contra una salida capturada ANTES del refactor.
 
 El pickle ``tests/datos/golden_prerefactor.pkl`` se generó con el
-``pipeline_completo.py`` original de 3,849 líneas, antes de extraer el
+``main.py`` original de 3,849 líneas, antes de extraer el
 dominio. Estos tests aseguran que ninguna migración posterior cambie los
 números del reporte.
 
 A diferencia de ``test_equivalencia.py``, este archivo NO depende de que
-``pipeline_completo.py`` siga existiendo: compara contra el paquete. Es el
+``main.py`` siga existiendo: compara contra el paquete. Es el
 que sobrevive cuando la migración termine.
 """
 

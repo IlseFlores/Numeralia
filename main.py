@@ -90,8 +90,8 @@
 #
 # 5) Correr:
 #
-#       python pipeline_completo.py          # usa el año actual
-#       python pipeline_completo.py 2026     # fuerza un año
+#       python main.py          # usa el año actual
+#       python main.py 2026     # fuerza un año
 #
 #    El dashboard queda en http://127.0.0.1:8050
 #
@@ -124,7 +124,6 @@ from gspread_dataframe import set_with_dataframe
 from dash import Dash, html, dcc, dash_table, Input, Output
 import plotly.express as px
 import plotly.graph_objects as go
-from fpdf import FPDF
 
 warnings.filterwarnings('ignore')
 
@@ -160,6 +159,14 @@ from numeralia.config import (                                    # noqa: E402
     credenciales_desde_env as _credenciales_desde_env,
     ruta_credenciales as _ruta_credenciales,
 )
+
+# Antes que nada, la salida en UTF-8: este módulo imprime emojis en sus
+# mensajes de avance y la consola de Windows es cp1252. Va aquí, y no solo en
+# el CLI, para que también funcione al importarlo desde una sesión de Python.
+from numeralia.cache import cache_sheets                            # noqa: E402
+from numeralia.consola import forzar_utf8                          # noqa: E402
+
+forzar_utf8()
 
 _ruta_env = _cargar_dotenv()
 if _ruta_env:
@@ -221,40 +228,6 @@ def _worksheet_a_df(ws) -> pd.DataFrame:
     df = pd.DataFrame(filas, columns=headers)
     df.columns = df.columns.str.strip()
     return df
-
-
-def seleccionar_archivo(titulo: str = "Seleccionar archivo Excel") -> str:
-    """Selector de archivo compatible con Colab y escritorio (no se usa en el flujo de Sheets)."""
-    if _en_colab():
-        from google.colab import files
-        print(f"{titulo}")
-        uploaded = files.upload()
-        if not uploaded:
-            return ''
-        nombre = list(uploaded.keys())[0]
-        ruta = str(Path.cwd() / nombre)
-        with open(ruta, "wb") as f:
-            f.write(uploaded[nombre])
-        return ruta
-    else:
-        import tkinter as tk
-        from tkinter import filedialog
-        r = tk.Tk()
-        r.withdraw()
-        ruta = filedialog.askopenfilename(
-            title=titulo,
-            filetypes=[("Archivos Excel", "*.xlsx"), ("Todos los archivos", "*.*")]
-        )
-        r.destroy()
-        return ruta or ''
-
-
-def descargar_archivo(ruta: str):
-    """Descarga un archivo al equipo del usuario (solo Colab; no se usa en el flujo de Sheets)."""
-    if _en_colab() and ruta and Path(ruta).exists():
-        from google.colab import files
-        print(f"Descargando a tu computadora: {Path(ruta).name}")
-        files.download(ruta)
 
 
 # ============================================================================
@@ -653,7 +626,6 @@ from numeralia.dominio.nowcast import (                           # noqa: E402
 from numeralia.dominio.nom172 import (                            # noqa: E402
     CAT_ORDER,
     CAT_PUNTAJE,
-    LIMITES_ANUALES,
     NOM_LIMITS,
     NOM_PRESETS,
     RANGOS,
@@ -661,13 +633,6 @@ from numeralia.dominio.nom172 import (                            # noqa: E402
     select_nom_preset,
 )
 from numeralia.dominio.suficiencia import suf_min_yearly          # noqa: E402
-from numeralia.reporte.tema import (                              # noqa: E402
-    AZUL_SEMADET,
-    GRIS_SEMADET,
-    IAS_COLORS,
-    NARANJA_SEMADET,
-    NOM_COLORS,
-)
 
 
 # SECCIÓN 3: PIPELINE IAS / NOM
@@ -1566,6 +1531,7 @@ def _icono_descarga(btn_id: str):
 # Los logos viven en MyDrive/logos. El código NO monta Drive por su cuenta,
 # para no interrumpir con la ventana de permisos: si es una sesión nueva,
 # corre drive.mount('/content/drive') en una celda aparte antes del pipeline.
+from numeralia.reporte.pdf import DescargaPDF, registrar_descargas  # noqa: E402
 from numeralia.reporte.tema import (                              # noqa: E402
     ALTO_GRAFICA_EPISODIOS,
     ALTO_LOGO,
@@ -1754,27 +1720,6 @@ def _fig_a_base64(fig, ancho: int = 1000, alto: int = 520):
         return None
 
 
-def _card_leyenda_estaciones(acumulado: pd.DataFrame):
-    """
-    Lista de referencia con el nombre de cada estación del mapa, como tarjeta
-    aparte (no un trace del mapa).
-    """
-    estaciones = sorted(acumulado['Estación'].dropna().unique().tolist())
-    chips = [
-        html.Span(nombre, style={
-            'backgroundColor': COLOR_GRIS_50, 'color': COLOR_GRIS,
-            'border': f'1px solid {COLOR_GRIS_100}', 'borderRadius': '999px',
-            'padding': '4px 12px', 'fontSize': '14px', 'fontWeight': '600',
-        })
-        for nombre in estaciones
-    ]
-    return html.Div([
-        html.Div('Estaciones en el mapa', style={
-            'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '16px', 'marginBottom': '10px'}),
-        html.Div(chips, style={'display': 'flex', 'flexWrap': 'wrap', 'gap': '8px'}),
-    ], style={**CARD_STYLE, 'marginBottom': '20px'})
-
-
 # ── Serie de tiempo mensual: días buena/aceptable calidad ──────────────────
 
 _MESES_ORDEN = {
@@ -1923,7 +1868,8 @@ def _card_serie_mensual_2025(df_resumen: pd.DataFrame):
                  style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         dcc.Graph(id='grafico-serie-mensual', figure=_fig_serie_buena_mensual(df_resumen),
                   config={'displayModeBar': False}),
-        dcc.Interval(id='refrescar-serie-mensual', interval=20 * 1000, n_intervals=0),
+        dcc.Interval(id='refrescar-serie-mensual',
+                     interval=CONFIG.refresco_mensual_seg * 1000, n_intervals=0),
     ], style={**CARD_STYLE, 'marginBottom': '20px'})
 
 
@@ -2746,7 +2692,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         html.Div(id='ficha-eventos-activos',
                  children=_card_eventos_activos(eventos_activos_2026),
                  style={'flex': '1', 'minWidth': '260px', 'display': 'flex'}),
-        dcc.Interval(id='refrescar-eventos', interval=20 * 1000, n_intervals=0),
+        dcc.Interval(id='refrescar-eventos',
+                     interval=CONFIG.refresco_eventos_seg * 1000, n_intervals=0),
     ], style={'display': 'flex', 'gap': '16px', 'flexWrap': 'wrap',
               'alignItems': 'stretch', 'marginBottom': '20px'})
 
@@ -2774,6 +2721,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         ], style={'display': 'flex', 'gap': '20px', 'flexWrap': 'wrap',
                   'alignItems': 'stretch'}),
 
+        # Destino de descarte del callback que dibuja las gráficas.
+        dcc.Store(id='echarts-dibujado'),
         dcc.Store(id='datos-echarts-episodios', data={
             'precontingencias': _datos_grafica_episodios(
                 df_episodios, col_2025_ep, col_2026_ep, 1, 'Precontingencias atmosféricas'),
@@ -2986,147 +2935,55 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
     # conexión: en el servidor, que trabaja con el JSON, no hay credenciales
     # de Google y el dashboard muestra la foto del archivo.
     if hay_conexion_sheets:
+        def _leer_hoja_cacheada(url: str, hoja: str, segundos: int) -> pd.DataFrame:
+            """
+            Lee una pestaña de Sheets reusando el resultado entre pestañas del
+            navegador. Sin esto, N pestañas abiertas son N lecturas por tick.
+            """
+            return cache_sheets.obtener(
+                (url, hoja), segundos,
+                lambda: _worksheet_a_df(gc.open_by_url(url).worksheet(hoja)))
+
         @app.callback(Output('ficha-eventos-activos', 'children'),
                       Input('refrescar-eventos', 'n_intervals'))
         def _refrescar_eventos_activos(_n):
             # Así, un cambio en 'Fecha termino' se refleja sin volver a correr
             # todo el pipeline de Python.
-            df_fresco = _worksheet_a_df(
-                gc.open_by_url(URL_FUENTE_2026).worksheet("NUEVO alertas 2026"))
+            df_fresco = _leer_hoja_cacheada(
+                URL_FUENTE_2026, "NUEVO alertas 2026", CONFIG.refresco_eventos_seg)
             return _card_eventos_activos(_eventos_activos_2026(df_fresco))
 
         @app.callback(Output('grafico-serie-mensual', 'figure'),
                       Input('refrescar-serie-mensual', 'n_intervals'))
         def _refrescar_serie_mensual(_n):
-            df_fresco = _worksheet_a_df(
-                gc.open_by_url(URL_RESUMEN_MENSUAL).worksheet("Resumen MENSUAL"))
+            df_fresco = _leer_hoja_cacheada(
+                URL_RESUMEN_MENSUAL, "Resumen MENSUAL", CONFIG.refresco_mensual_seg)
             return _fig_serie_buena_mensual(df_fresco)
 
-    # ── Callbacks de descarga PDF de las bitácoras ────────────────────────
-    import tempfile
-
-    def _anchos_proporcionales(pdf_obj, df: pd.DataFrame, font_size: int = 6):
-        """
-        Calcula anchos de columna proporcionales al contenido más largo.
-
-        Se mide el ancho REAL del texto en mm (get_string_width) en vez de
-        contar caracteres, porque no todos los caracteres miden lo mismo.
-        Además cada columna tiene un ancho MÍNIMO garantizado: sin esto, una
-        columna corta como 'No' recibía tan poco espacio que el truncado le
-        cortaba dígitos y '46' terminaba mostrándose como '4'.
-        """
-        ancho_pagina = pdf_obj.w - 20
-        margen_celda = 3          # padding interno de cada celda, en mm
-        tope = 45                 # ninguna columna acapara más que esto
-
-        # 1) Ancho que necesitaría cada columna para no truncar nada.
-        deseados = []
-        for c in df.columns:
-            pdf_obj.set_font('Helvetica', 'B', font_size)
-            ancho = pdf_obj.get_string_width(str(c))
-            pdf_obj.set_font('Helvetica', '', font_size)
-            for v in df[c].astype(str).tolist():
-                ancho = max(ancho, pdf_obj.get_string_width(v))
-            deseados.append(min(ancho + margen_celda, tope))
-
-        # 2) Piso por columna: lo que ocupa su valor más largo, o 8 mm.
-        minimos = []
-        pdf_obj.set_font('Helvetica', '', font_size)
-        for c in df.columns:
-            vals = df[c].astype(str).tolist()
-            mas_largo = max((pdf_obj.get_string_width(v) for v in vals), default=0)
-            minimos.append(min(max(8.0, mas_largo + margen_celda), tope))
-
-        total = sum(deseados) or 1
-        if total <= ancho_pagina:
-            factor = ancho_pagina / total
-            return [d * factor for d in deseados]
-
-        # 3) No cabe todo: se respetan los mínimos y se reparte el resto.
-        piso = sum(minimos)
-        if piso >= ancho_pagina:
-            return [ancho_pagina * (m / piso) for m in minimos]
-
-        sobrante = ancho_pagina - piso
-        extra_deseado = [max(0.0, d - m) for d, m in zip(deseados, minimos)]
-        total_extra = sum(extra_deseado) or 1
-        return [m + sobrante * (e / total_extra)
-                for m, e in zip(minimos, extra_deseado)]
-
-    def _safe_latin1(texto: str) -> str:
-        """Reemplaza caracteres que no caben en latin-1 para que fpdf2 no falle."""
-        return texto.encode('latin-1', errors='replace').decode('latin-1')
-
-    def _generar_pdf_tabla(df: pd.DataFrame, titulo: str, subtitulo: str = '') -> str:
-        """Genera un PDF landscape con la tabla completa, columnas proporcionales."""
-        pdf = FPDF(orientation='L', unit='mm', format='A4')
-        pdf.set_auto_page_break(auto=True, margin=15)
-        pdf.add_page()
-        pdf.set_font('Helvetica', 'B', 14)
-        pdf.set_text_color(70, 80, 85)
-        pdf.cell(0, 10, _safe_latin1(titulo), ln=True, align='C')
-
-        if subtitulo:
-            # Mismo gris tenue que el subtítulo de la tarjeta en el dashboard.
-            pdf.set_font('Helvetica', '', 9)
-            pdf.set_text_color(138, 144, 150)
-            pdf.multi_cell(0, 5, _safe_latin1(subtitulo), align='C')
-
-        pdf.ln(3)
-
-        cols = list(df.columns)
-        anchos = _anchos_proporcionales(pdf, df)
-
-        def _imprimir_encabezados():
-            pdf.set_font('Helvetica', 'B', 6)
-            pdf.set_fill_color(70, 80, 85)
-            pdf.set_text_color(255, 255, 255)
-            for i, c in enumerate(cols):
-                # Se recorta por ancho real, no por número de caracteres.
-                enc = _safe_latin1(str(c))
-                while pdf.get_string_width(enc) > anchos[i] - 1 and len(enc) > 1:
-                    enc = enc[:-1]
-                pdf.cell(anchos[i], 7, enc, border=1, fill=True, align='C')
-            pdf.ln()
-            pdf.set_font('Helvetica', '', 6)
-            pdf.set_text_color(50, 50, 50)
-
-        _imprimir_encabezados()
-
-        for _, row in df.iterrows():
-            if pdf.get_y() + 6 > pdf.h - 15:
-                pdf.add_page()
-                _imprimir_encabezados()
-            for i, c in enumerate(cols):
-                val = _safe_latin1(str(row[c]))
-                while pdf.get_string_width(val) > anchos[i] - 2 and len(val) > 1:
-                    val = val[:-1]
-                pdf.cell(anchos[i], 6, val, border=1, align='C')
-            pdf.ln()
-
-        ruta = tempfile.mktemp(suffix='.pdf')
-        pdf.output(ruta)
-        return ruta
-
-    @app.callback(Output('descarga-pdf-alertas', 'data'), Input('btn-pdf-alertas', 'n_clicks'),
-                  prevent_initial_call=True)
-    def _descargar_pdf_alertas(n_clicks):
-        ruta = _generar_pdf_tabla(
-            df_bitacora_alertas,
-            'Alertas y Emergencias Atmosféricas 2026',
-            'Episodios derivados de eventos extraordinarios, como incendios u otras '
-            'fuentes que pueden afectar la calidad del aire.')
-        return dcc.send_file(ruta, filename='Alertas_y_Emergencias_2026.pdf')
-
-    @app.callback(Output('descarga-pdf-episodios', 'data'), Input('btn-pdf-episodios', 'n_clicks'),
-                  prevent_initial_call=True)
-    def _descargar_pdf_episodios(n_clicks):
-        ruta = _generar_pdf_tabla(
-            df_bitacora_episodios,
-            'Episodios de Mala calidad del aire 2026',
-            'Episodios activados a partir de las mediciones registradas en las '
-            'estaciones del SIMAJ.')
-        return dcc.send_file(ruta, filename='Episodios_2026.pdf')
+    # ── Descarga de las bitácoras en PDF ──────────────────────────────────
+    #
+    # La generación vive en numeralia.reporte.pdf: armar un PDF con fpdf2 no
+    # tiene por qué estar anidado dentro de la función que construye la app.
+    registrar_descargas(app, [
+        DescargaPDF(
+            df=df_bitacora_alertas,
+            titulo='Alertas y Emergencias Atmosféricas 2026',
+            subtitulo='Episodios derivados de eventos extraordinarios, como incendios '
+                      'u otras fuentes que pueden afectar la calidad del aire.',
+            archivo='Alertas_y_Emergencias_2026.pdf',
+            boton_id='btn-pdf-alertas',
+            descarga_id='descarga-pdf-alertas',
+        ),
+        DescargaPDF(
+            df=df_bitacora_episodios,
+            titulo='Episodios de Mala calidad del aire 2026',
+            subtitulo='Episodios activados a partir de las mediciones registradas '
+                      'en las estaciones del SIMAJ.',
+            archivo='Episodios_2026.pdf',
+            boton_id='btn-pdf-episodios',
+            descarga_id='descarga-pdf-episodios',
+        ),
+    ])
 
     # ── Gráficas de episodios con ECharts ─────────────────────────────────
     #
@@ -3323,7 +3180,10 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             return window.dash_clientside.no_update;
         }
         """,
-        Output('datos-echarts-episodios', 'title'),
+        # El callback dibuja en el navegador y no devuelve nada útil, pero
+        # Dash exige una salida. Va a un Store de descarte: antes apuntaba a
+        # 'title', que dcc.Store no tiene, y Dash lo rechazaba en cada carga.
+        Output('echarts-dibujado', 'data'),
         Input('datos-echarts-episodios', 'data'),
     )
 
@@ -3619,18 +3479,12 @@ def run_full_pipeline(anio_actual: Optional[int] = None, lanzar_dashboard: bool 
 
 
 if __name__ == "__main__":
-    # Corriendo como .py, el año se toma del sistema en vez de preguntarlo:
-    # así el pipeline puede correr solo, sin nadie que escriba en la consola.
-    # Para forzar otro año:  python pipeline_completo.py 2026
+    # El punto de entrada del proyecto es numeralia.cli, no este archivo.
+    # Aquí solo se le delega para que `python main.py` siga
+    # funcionando igual que `python -m numeralia`, con los mismos argumentos
+    # y el mismo arreglo de UTF-8 en Windows.
     import sys
 
-    _anio = None
-    if len(sys.argv) > 1:
-        try:
-            _anio = int(sys.argv[1])
-        except ValueError:
-            print(f"Año inválido: {sys.argv[1]!r}. Se usará el año actual.")
-    if _anio is None:
-        _anio = datetime.now().year
+    from numeralia.cli import main
 
-    acumulado = run_full_pipeline(anio_actual=_anio)
+    raise SystemExit(main(sys.argv[1:]))
