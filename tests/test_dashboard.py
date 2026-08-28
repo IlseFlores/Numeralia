@@ -211,6 +211,18 @@ class TestFiguraSerieMensual:
         # Con un ancho fijo la gráfica no se adaptaría al contenedor.
         assert figura_mensual.layout.width is None
 
+    def test_no_fija_el_alto(self, figura_mensual):
+        # El alto lo manda el contenedor desde assets/responsive.css, que es
+        # lo que permite achicarla en tablet y celular. Si alguien repone un
+        # 'height' aquí, el CSS deja de tener efecto sin avisar.
+        assert figura_mensual.layout.height is None
+
+    def test_tampoco_lo_fija_la_version_sin_datos(self):
+        # La rama de respaldo (hoja con menos de 3 columnas) también tiene que
+        # dejar el alto al contenedor.
+        vacia = original._fig_serie_buena_mensual(pd.DataFrame({"A": [1], "B": [2]}))
+        assert vacia.layout.height is None
+
     def test_el_eje_lleva_los_doce_meses(self, figura_mensual):
         assert len(figura_mensual.layout.xaxis.categoryarray) == 12
 
@@ -289,3 +301,39 @@ class TestTarjetaSerieMensual:
         # periódico repondría las pastillas en el celular.
         grafica = self._por_id(tarjeta, "grafico-serie-mensual")
         assert getattr(grafica, "figure", None) is None
+
+    def test_la_grafica_lleva_el_alto_y_la_clase_que_usa_el_css(self, tarjeta):
+        grafica = self._por_id(tarjeta, "grafico-serie-mensual")
+        assert grafica.className == "grafica-serie-mensual"
+        assert grafica.style["height"] == "330px"
+
+    def test_la_grafica_es_responsive(self, tarjeta):
+        # Sin esto Plotly no sigue al contenedor y el alto del CSS no sirve.
+        grafica = self._por_id(tarjeta, "grafico-serie-mensual")
+        assert grafica.config["responsive"] is True
+
+
+class TestFiguraMapa:
+    """
+    El mapa siguió el mismo camino que la serie mensual: el alto salió de la
+    figura y ahora lo pone el contenedor.
+    """
+
+    @pytest.fixture
+    def figura_mapa(self):
+        df = pd.DataFrame({
+            "Estación": ["AGU", "CEN", "TLA"],
+            "Latitud": [20.62, 20.67, 20.64],
+            "Longitud": [-103.42, -103.35, -103.44],
+            original.MALA_25: [10, 20, 30],
+            original.MALA_26: [5, 25, 30],
+            original.BUENA_25: [100, 90, 80],
+            original.BUENA_26: [120, 85, 80],
+        })
+        return original._fig_mapa(df)
+
+    def test_no_fija_el_alto(self, figura_mapa):
+        assert figura_mapa.layout.height is None
+
+    def test_no_fija_el_ancho(self, figura_mapa):
+        assert figura_mapa.layout.width is None
