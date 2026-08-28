@@ -1,0 +1,101 @@
+/*
+ * Cortes responsive del reporte.
+ *
+ * Dash sirve solo lo que esté en esta carpeta: no hay que registrar el
+ * archivo en ningún lado, basta con que exista. Los estilos de impresión y
+ * los globales siguen en el `index_string` de main.py; aquí va únicamente lo
+ * que depende del ancho de la pantalla.
+ *
+ * Sobre el `!important`: el layout se arma con estilos en línea desde Python
+ * (`style={...}` en cada componente), y un estilo en línea le gana a
+ * cualquier regla de hoja externa sin importar la especificidad. Es la única
+ * forma de sobrescribirlos sin reescribir el layout entero en clases. Si algún
+ * día las tarjetas se migran a clases, estos `!important` se pueden quitar.
+ *
+ * Dos cortes:
+ *   · <= 1024px  tablet — se aprieta el margen exterior y se sueltan los
+ *                anchos mínimos, pero las tarjetas siguen acomodándose solas.
+ *   · <=  767px  celular — todo pasa a una sola columna, en el mismo orden.
+ */
+
+/* ── Tablet ───────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .lienzo-reporte {
+    padding: 20px 16px !important;
+  }
+
+  /* Los anchos mínimos (260-420px) son los que obligaban al scroll
+     horizontal. Al soltarlos, el `flex-wrap: wrap` que ya traían las filas
+     hace el acomodo solo. */
+  .fila-apilable > * {
+    min-width: 0 !important;
+  }
+}
+
+/* ── Celular ──────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .lienzo-reporte {
+    padding: 14px 10px !important;
+  }
+
+  /* Una sola columna. `column` respeta el orden del DOM, así que las
+     tarjetas quedan en la misma secuencia que en escritorio. */
+  .fila-apilable {
+    flex-direction: column !important;
+  }
+
+  .fila-apilable > * {
+    min-width: 0 !important;
+    flex-basis: auto !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Encabezado: logo, título y logo uno debajo del otro. Los logos se
+     encogen porque a 77px de alto se comen la primera pantalla completa. */
+  .fila-encabezado {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  .fila-encabezado img {
+    height: 52px !important;
+  }
+
+  .titulo-reporte {
+    font-size: 25px !important;
+  }
+
+  .fecha-reporte {
+    font-size: 16px !important;
+  }
+
+  /* El alto se mantiene generoso a propósito. Sobre el área de barras se
+     reparten 3 segmentos apilados con un mínimo de 20px cada uno
+     (`barMinHeight`), y con 320px de alto los chicos quedaban justo en ese
+     mínimo: un número de 16px en negrita dentro de una caja de 20px. En
+     celular el espacio vertical es barato —desplazarse es natural— así que
+     aquí conviene sobrar y no faltar. */
+  #echart-precontingencias,
+  #echart-contingencias-f1 {
+    height: 420px !important;
+  }
+
+  /* Las tablas conservan sus columnas y se deslizan de lado dentro de su
+     tarjeta. El `overflow: hidden` original recortaba las columnas de la
+     derecha sin dar manera de llegar a ellas. */
+  .tabla-scroll {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Apilado, el panel de detalle del mapa lleva su separador arriba y no a
+     la izquierda, que es donde ya no hay nada. */
+  .panel-detalle-mapa {
+    border-left: none !important;
+    padding-left: 0 !important;
+    border-top: 1px solid #e6e8e9 !important;
+    padding-top: 16px !important;
+    margin-top: 4px !important;
+  }
+}

@@ -1641,11 +1641,11 @@ def _encabezado_reporte():
         html.Div([
             _celda_logo(src_simaj, 'flex-start'),
             html.Div([
-                html.H1('Reporte Diario de Calidad del Aire', style={
+                html.H1('Reporte Diario de Calidad del Aire', className='titulo-reporte', style={
                     'margin': '0', 'fontSize': '37px', 'fontWeight': '600',
                     'color': COLOR_GRIS, 'textAlign': 'center', 'lineHeight': '1.15',
                 }),
-                html.Div(_fecha_encabezado(), style={
+                html.Div(_fecha_encabezado(), className='fecha-reporte', style={
                     'color': COLOR_2026, 'fontSize': '20px', 'fontWeight': '600',
                     'textAlign': 'center', 'marginTop': '8px',
                 }),
@@ -1653,8 +1653,8 @@ def _encabezado_reporte():
                       'justifyContent': 'center', 'padding': '0 24px',
                       'flexDirection': 'column', 'minWidth': '0'}),
             _celda_logo(src_semadet, 'flex-end'),
-        ], style={'display': 'flex', 'alignItems': 'center', 'gap': '24px',
-                  'marginBottom': '22px'}),
+        ], className='fila-encabezado', style={'display': 'flex', 'alignItems': 'center',
+                  'gap': '24px', 'marginBottom': '22px'}),
 
         # Introducción
         html.P(
@@ -1885,8 +1885,14 @@ def _card_serie_mensual_2025(df_resumen: pd.DataFrame):
                  'el Índice Aire y Salud (NOM-172-SEMARNAT-2023), considerando el valor más alto '
                  'registrado por el SIMAJ.',
                  style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
-        dcc.Graph(id='grafico-serie-mensual', figure=_fig_serie_buena_mensual(df_resumen),
-                  config={'displayModeBar': False}),
+        # La figura no se le pasa directo a la gráfica: vive en este Store y
+        # un callback clientside la adapta al ancho de la pantalla antes de
+        # dibujarla (en celular le quita el cintillo de pastillas, que a ese
+        # ancho mide 5 px y queda ilegible). Así hay un solo escritor de
+        # 'figure' y el refresco periódico no pisa esa adaptación.
+        dcc.Store(id='figura-serie-base',
+                  data=_fig_serie_buena_mensual(df_resumen).to_plotly_json()),
+        dcc.Graph(id='grafico-serie-mensual', config={'displayModeBar': False}),
         dcc.Interval(id='refrescar-serie-mensual',
                      interval=CONFIG.refresco_mensual_seg * 1000, n_intervals=0),
     ], style={**CARD_STYLE, 'marginBottom': '20px'})
@@ -1939,7 +1945,8 @@ def _tabla_detalle_estacion(estacion: str, row: pd.Series):
         html.Div(
             html.Table([html.Thead(encabezado), html.Tbody(filas)],
                        style={'width': '100%', 'borderCollapse': 'collapse'}),
-            style={'borderRadius': '10px', 'overflow': 'hidden', 'border': f'1px solid {COLOR_GRIS_100}'}
+            className='tabla-scroll',
+        style={'borderRadius': '10px', 'overflow': 'hidden', 'border': f'1px solid {COLOR_GRIS_100}'}
         ),
         html.Div(f'Tendencia 2025 vs 2026: {_tendencia_buena(row)}', style={
             'color': COLOR_GRIS_MUTE, 'fontSize': '14px', 'marginTop': '10px'}),
@@ -2172,6 +2179,7 @@ def _tabla_episodios(df: pd.DataFrame):
     return html.Div(
         html.Table([html.Thead(encabezado), html.Tbody(filas)],
                     style={'width': '100%', 'borderCollapse': 'collapse'}),
+        className='tabla-scroll',
         style={'borderRadius': '10px', 'overflow': 'hidden', 'border': f'1px solid {COLOR_GRIS_100}'}
     )
 
@@ -2311,6 +2319,7 @@ def _tabla_alertas(df: pd.DataFrame):
     return html.Div(
         html.Table([html.Thead(encabezado), html.Tbody(filas)],
                     style={'width': '100%', 'borderCollapse': 'collapse'}),
+        className='tabla-scroll',
         style={'borderRadius': '10px', 'overflow': 'hidden', 'border': f'1px solid {COLOR_GRIS_100}'}
     )
 
@@ -2731,7 +2740,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                  style={'flex': '1', 'minWidth': '260px', 'display': 'flex'}),
         dcc.Interval(id='refrescar-eventos',
                      interval=CONFIG.refresco_eventos_seg * 1000, n_intervals=0),
-    ], style={'display': 'flex', 'gap': '16px', 'flexWrap': 'wrap',
+    ], className='fila-apilable', style={'display': 'flex', 'gap': '16px', 'flexWrap': 'wrap',
               'alignItems': 'stretch', 'marginBottom': '20px'})
 
     episodios_card = html.Div([
@@ -2753,9 +2762,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                          style={'flex': '1', 'minWidth': '190px', 'height': ALTO_GRAFICA_EPISODIOS}),
                 html.Div(id='echart-contingencias-f1',
                          style={'flex': '1', 'minWidth': '190px', 'height': ALTO_GRAFICA_EPISODIOS}),
-            ], style={'flex': '1 1 400px', 'minWidth': '380px', 'display': 'flex',
-                      'gap': '10px', 'alignItems': 'stretch'}),
-        ], style={'display': 'flex', 'gap': '20px', 'flexWrap': 'wrap',
+            ], className='fila-apilable', style={'flex': '1 1 400px', 'minWidth': '380px',
+                      'display': 'flex', 'gap': '10px', 'alignItems': 'stretch'}),
+        ], className='fila-apilable', style={'display': 'flex', 'gap': '20px', 'flexWrap': 'wrap',
                   'alignItems': 'stretch'}),
 
         # Destino de descarte del callback que dibuja las gráficas.
@@ -2835,9 +2844,10 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 ], style={'borderBottom': f'1px solid {COLOR_GRIS_100}',
                           'paddingBottom': '12px', 'marginBottom': '4px'}),
                 html.Div(id='mapa-detalle', children=_detalle_placeholder()),
-            ], style={'flex': '1', 'minWidth': '260px', 'borderLeft': f'1px solid {COLOR_GRIS_100}',
-                      'paddingLeft': '20px'}),
-        ], style={'display': 'flex', 'gap': '10px', 'flexWrap': 'wrap'}),
+            ], className='panel-detalle-mapa',
+               style={'flex': '1', 'minWidth': '260px',
+                      'borderLeft': f'1px solid {COLOR_GRIS_100}', 'paddingLeft': '20px'}),
+        ], className='fila-apilable', style={'display': 'flex', 'gap': '10px', 'flexWrap': 'wrap'}),
         html.P([
             "El color y tamaño de cada burbuja representan el ",
             html.B("cambio en días de mala calidad (2026 vs 2025)"),
@@ -2853,13 +2863,23 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
     bitacora_alertas_card, df_bitacora_alertas = _card_bitacora_alertas(df_alertas_2026_raw)
     bitacora_episodios_card, df_bitacora_episodios = _card_bitacora_episodios(df_episodios_2026_raw)
 
-    app = Dash(__name__)
+    # El meta 'viewport' es lo que hace que un teléfono renderice a su ancho
+    # real. Sin él asume 980px y luego encoge la página entera, así que el
+    # reporte se ve diminuto por más medias queries que se escriban.
+    app = Dash(__name__, meta_tags=[
+        {'name': 'viewport', 'content': 'width=device-width, initial-scale=1'},
+    ])
     app.title = 'Reporte Diario de Calidad del Aire 2026'
 
-    # CSS global + de impresión.
-    #  · min-width en html/body: el dashboard nunca se angosta más allá de
-    #    1280px, así que las tarjetas no se reacomodan al cambiar el tamaño
-    #    de la ventana; en su lugar aparece scroll horizontal.
+    # CSS global + de impresión. Los cortes responsive viven aparte, en
+    # assets/responsive.css, que Dash sirve solo por estar en esa carpeta.
+    #
+    #  · min-width solo durante la captura: antes era fijo en html/body y el
+    #    dashboard nunca se angostaba de 1280px, así que en una ventana chica
+    #    aparecía scroll horizontal en vez de reacomodarse. Se conserva la
+    #    idea original —el PDF debe salir con el layout de escritorio— pero
+    #    limitada al momento de la foto, mediante la clase que pone el
+    #    callback de descarga.
     #  · print-color-adjust: exact -> obliga al navegador a imprimir los
     #    fondos de color, que por defecto omite para ahorrar tinta.
     app.index_string = '''<!DOCTYPE html>
@@ -2875,13 +2895,23 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
     <style>
       html, body {
         margin: 0;
-        min-width: 1280px;
       }
-      #react-entry-point {
+      /* Ancho de escritorio forzado mientras html2canvas toma la foto, para
+         que el PDF salga igual desde un celular que desde una computadora.
+         La clase la pone y la quita el callback de descarga. */
+      body.capturando-pdf,
+      body.capturando-pdf #react-entry-point {
         min-width: 1280px;
       }
       @media print {
         @page { size: A4 landscape; margin: 10mm; }
+        /* La impresión con Ctrl+P también va en el layout de escritorio. Antes
+           lo heredaba del min-width global; al hacerlo responsive hay que
+           repetirlo aquí, o imprimir desde una ventana angosta saldría con las
+           tarjetas apiladas. */
+        html, body, #react-entry-point {
+          min-width: 1280px !important;
+        }
         html, body {
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
@@ -2926,7 +2956,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             _encabezado_reporte(),
             kpis,
             episodios_card,
-            html.Div([alertas_card, imeca_card],
+            html.Div([alertas_card, imeca_card], className='fila-apilable',
                      style={'display': 'flex', 'gap': '20px', 'flexWrap': 'wrap'}),
         ], id='pdf-pagina-1'),
 
@@ -2939,10 +2969,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             bitacora_alertas_card,
             bitacora_episodios_card,
         ], id='pdf-pagina-3'),
-    ], style={
+    ], className='lienzo-reporte', style={
         'backgroundColor': COLOR_BG,
         'minHeight': '100vh',
-        'minWidth': '1280px',
         'padding': '28px 36px',
         'fontFamily': 'Inter, Segoe UI, sans-serif',
         'color': COLOR_TEXT,
@@ -2990,12 +3019,14 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 URL_FUENTE_2026, "NUEVO alertas 2026", CONFIG.refresco_eventos_seg)
             return _card_eventos_activos(_eventos_activos_2026(df_fresco))
 
-        @app.callback(Output('grafico-serie-mensual', 'figure'),
+        # Escribe al Store y no a la gráfica: quien dibuja es el callback
+        # clientside de abajo, que es el que sabe el ancho de la pantalla.
+        @app.callback(Output('figura-serie-base', 'data'),
                       Input('refrescar-serie-mensual', 'n_intervals'))
         def _refrescar_serie_mensual(_n):
             df_fresco = _leer_hoja_cacheada(
                 URL_RESUMEN_MENSUAL, "Resumen MENSUAL", CONFIG.refresco_mensual_seg)
-            return _fig_serie_buena_mensual(df_fresco)
+            return _fig_serie_buena_mensual(df_fresco).to_plotly_json()
 
     # ── Descarga de las bitácoras en PDF ──────────────────────────────────
     #
@@ -3044,6 +3075,15 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
                 let chart = echarts.getInstanceByDom(el);
                 if (!chart) { chart = echarts.init(el, null, {renderer: 'svg'}); }
+
+                // Nota para quien venga a apretar esta gráfica en celular: el
+                // margen superior del grid NO sirve para distinguir pantallas
+                // por ancho. En escritorio cada una de estas dos gráficas mide
+                // ~277px (van en pareja, junto a la tabla comparativa) y en
+                // celular ~330px a todo lo ancho, así que cualquier umbral de
+                // ancho que agarre al celular agarra también al escritorio.
+                // El espacio de los segmentos se resuelve por ALTO, que es lo
+                // que hace assets/responsive.css.
 
                 // El eje lo fija el año con más episodios, así que un
                 // segmento chico ocupa la misma fracción por más alta que se
@@ -3218,6 +3258,12 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             // conserva las medidas que tenía al inicializarse y el SVG se
             // deforma. Este listener le pide recalcular en cada resize. La
             // bandera evita registrarlo varias veces.
+            //
+            // Basta con resize() —que reajusta medidas sin reaplicar la
+            // opción— porque la opción no depende del tamaño: el alto en
+            // celular lo cambia el CSS y el resto son valores fijos. Si algún
+            // día algo de la opción pasa a depender del ancho, aquí habrá que
+            // redibujar y no solo reajustar.
             if (!window.__echartsResizeBound) {
                 window.__echartsResizeBound = true;
                 window.addEventListener('resize', function () {
@@ -3238,6 +3284,92 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         # 'title', que dcc.Store no tiene, y Dash lo rechazaba en cada carga.
         Output('echarts-dibujado', 'data'),
         Input('datos-echarts-episodios', 'data'),
+    )
+
+    # ── Serie mensual: cintillo de pastillas solo si hay ancho ───────────
+    #
+    # Las pastillas se dibujan con el ancho en unidades de categoría y el alto
+    # en fracción del lienzo, así que al angostarse la gráfica el ancho encoge
+    # y el alto no: en un teléfono quedan de 5 px de ancho por 33 de alto, con
+    # un número de dos dígitos encima. En vez de deformarlas se quitan, y el
+    # dato se sigue consultando al tocar cada punto.
+    #
+    # Se adapta aquí y no en Python porque el servidor no sabe el ancho de la
+    # pantalla; y se hace clientside para no pagar un viaje al servidor cada
+    # vez que alguien gira el teléfono.
+    app.clientside_callback(
+        """
+        function(figuraBase) {
+            if (!figuraBase) { return window.dash_clientside.no_update; }
+
+            // Umbral propio de esta gráfica, distinto de los 768px del resto
+            // del layout: aquí no manda el acomodo de las tarjetas sino la
+            // geometría de la pastilla. Con C = ancho del contenedor, el
+            // margen del trazado se lleva 80px y los 12 meses se reparten el
+            // resto, así que la pastilla (0.24 categorías) mide
+            // 0.24 × (C − 80) / 12 = 0.02 × (C − 80) píxeles. Un número de dos
+            // dígitos a 13px pide ~18px, de donde C >= 980.
+            //
+            // Antes esto se medía contra window.innerWidth con 768, y dejaba
+            // fuera a todos los iPad: uno en vertical mide exactamente 768, y
+            // su pastilla, 11.5px.
+            const ANCHO_MINIMO_CINTILLO = 980;
+
+            // Se mide el contenedor y no la ventana por dos razones: es lo que
+            // de verdad fija el tamaño de la pastilla, y durante la captura
+            // del PDF el layout se ensancha a 1280px SIN que la ventana
+            // cambie. Con window.innerWidth, un PDF descargado desde el
+            // celular se iría sin cintillo.
+            function anchoGrafica() {
+                const el = document.getElementById('grafico-serie-mensual');
+                // En el primer dibujo el nodo puede no estar medido todavía;
+                // ahí se cae a la ventana, que peca de ancha y conserva el
+                // cintillo en vez de quitarlo de más.
+                return (el && el.clientWidth) ? el.clientWidth : window.innerWidth;
+            }
+
+            // El listener de abajo necesita la última figura buena; el
+            // refresco periódico la reemplaza cada media hora.
+            window.__serieBase = figuraBase;
+
+            function adaptar(fig) {
+                // Copia profunda: la figura del Store no se toca, porque es la
+                // que se vuelve a usar cuando la pantalla se ensancha.
+                const copia = JSON.parse(JSON.stringify(fig));
+                if (anchoGrafica() >= ANCHO_MINIMO_CINTILLO) { return copia; }
+
+                copia.layout.shapes = [];
+                copia.layout.annotations = [];
+                // El margen superior de 95 px existía para dejarle lugar al
+                // cintillo; sin él es un hueco. Y la leyenda vivía en y=1.30,
+                // o sea arriba del cintillo: si solo se recorta el margen,
+                // queda fuera del lienzo.
+                copia.layout.margin = {l: 46, r: 12, t: 34, b: 50};
+                copia.layout.legend = Object.assign({}, copia.layout.legend,
+                                                    {y: 1.10, x: 0.5, xanchor: 'center'});
+                return copia;
+            }
+
+            if (!window.__serieResizeBound) {
+                window.__serieResizeBound = true;
+                let eraAngosto = anchoGrafica() < ANCHO_MINIMO_CINTILLO;
+                window.addEventListener('resize', function () {
+                    const esAngosto = anchoGrafica() < ANCHO_MINIMO_CINTILLO;
+                    // Solo al cruzar el umbral: redibujar en cada píxel del
+                    // arrastre es caro y no cambia nada.
+                    if (esAngosto === eraAngosto) { return; }
+                    eraAngosto = esAngosto;
+                    window.dash_clientside.set_props(
+                        'grafico-serie-mensual',
+                        {figure: adaptar(window.__serieBase)});
+                });
+            }
+
+            return adaptar(figuraBase);
+        }
+        """,
+        Output('grafico-serie-mensual', 'figure'),
+        Input('figura-serie-base', 'data'),
     )
 
     # ── PDF del dashboard: captura y descarga directa ────────────────────
@@ -3263,6 +3395,25 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             }
 
             const restaurar = [];
+
+            // El PDF tiene que salir con el layout de escritorio aunque se
+            // descargue desde un celular: html2canvas fotografía el DOM vivo,
+            // así que si la pantalla es angosta capturaría la versión apilada.
+            // La clase impone los 1280px (regla .capturando-pdf del
+            // index_string) solo durante la foto.
+            //
+            // El evento 'resize' es el que despierta a ECharts y a Plotly: los
+            // dos escuchan window.resize y recalculan sus medidas solos. Sin
+            // él, las gráficas se fotografían con el tamaño que tenían en la
+            // pantalla chica aunque el contenedor ya sea más ancho. La espera
+            // le da tiempo al navegador de rehacer el acomodo antes de que se
+            // midan los contenedores con getBoundingClientRect.
+            const anchoForzado = document.body.clientWidth < 1280;
+            if (anchoForzado) {
+                document.body.classList.add('capturando-pdf');
+                window.dispatchEvent(new Event('resize'));
+                await new Promise(res => setTimeout(res, 450));
+            }
 
             // Cambia una gráfica por su imagen y espera a que el navegador
             // termine de decodificarla. Dos detalles importantes:
@@ -3431,6 +3582,14 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     if (img.parentNode) { img.parentNode.insertBefore(div, img); }
                     img.remove();
                 });
+                // Y se devuelve la pantalla a su ancho real. El 'resize' final
+                // es el que reacomoda las gráficas a la vista del teléfono;
+                // sin él se quedan dibujadas a 1280px dentro de un contenedor
+                // angosto.
+                if (anchoForzado) {
+                    document.body.classList.remove('capturando-pdf');
+                    window.dispatchEvent(new Event('resize'));
+                }
             }
 
             return window.dash_clientside.no_update;
