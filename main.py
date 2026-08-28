@@ -427,8 +427,25 @@ class ValidadorCalidadAire:
         for col in cols_param:
             mask = df_flag[col].isna()
             if mask.any():
-                df_flag.loc[mask, col] = 'ND'
+                self._marcar(df_flag, col, mask, 'ND')
         return df_flag
+
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _marcar(df: pd.DataFrame, columna: str, mask: pd.Series, codigo: str) -> None:
+        """
+        Escribe un código de bandera ('IR', 'ND', ...) en las filas de ``mask``.
+
+        Las columnas de parámetros conviven con números y con códigos de texto,
+        así que su tipo tiene que ser ``object``. Pandas 3 ya no las convierte
+        solo al asignarles texto: si la columna llegó como ``float64`` —porque
+        en esa corrida todos sus valores eran numéricos— la asignación lanza
+        ``TypeError: Invalid value 'IR' for dtype 'float64'``. De ahí que la
+        conversión vaya explícita y antes de escribir.
+        """
+        if df[columna].dtype != object:
+            df[columna] = df[columna].astype(object)
+        df.loc[mask, columna] = codigo
 
     # ------------------------------------------------------------------
     def validar_rangos(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -449,7 +466,7 @@ class ValidadorCalidadAire:
                 (valores_num < config['min']) | (valores_num > config['max'])
             )
             if mask_fuera.any():
-                df_val.loc[mask_fuera, parametro] = 'IR'
+                self._marcar(df_val, parametro, mask_fuera, 'IR')
                 contadores['IR'] += mask_fuera.sum()
 
             if 'limite_deteccion' in config and config['limite_deteccion'] is not None:
@@ -1498,12 +1515,12 @@ from numeralia.reporte.tema import (                              # noqa: E402
     COLOR_GRIS_50,
     COLOR_GRIS_100,
     COLOR_GRIS_MUTE,
+    COLOR_BLANCO,
     COLOR_MUTED,
     COLOR_NEGRO,
     COLOR_TEXT,
     COLOR_2025,
     COLOR_2026,
-    COLOR_EPISODIOS_ANIO_PREVIO,
     ESCALA_EPISODIOS_ANIO_ACTUAL,
     ESCALA_EPISODIOS_ANIO_PREVIO,
     PLOTLY_TEMPLATE,
@@ -2226,11 +2243,28 @@ def _datos_grafica_episodios(df: pd.DataFrame, col_2025: str, col_2026: str,
         'anios': ['2025', '2026'],
         # Colores de cada año, en el mismo orden que 'anios'. Las barras y los
         # totales se pintan con estos; la severidad se queda en el título.
-        # El año previo usa aquí su azul propio, no el azul marino de marca.
-        'colores_anio': [COLOR_EPISODIOS_ANIO_PREVIO, COLOR_2026],
+        'colores_anio': [COLOR_2025, COLOR_2026],
         # Un tono por contaminante, dentro del color de cada año. El índice
         # de la serie elige el tono; el del año elige la escala.
         'escalas_anio': [ESCALA_EPISODIOS_ANIO_PREVIO, ESCALA_EPISODIOS_ANIO_ACTUAL],
+        # Color del texto de cada segmento, por año y por contaminante (mismo
+        # orden que 'series'). Baja a este detalle porque el contraste lo
+        # decide el tono exacto del relleno, no el año: los tres tonos del año
+        # previo son oscuros y aguantan letra blanca, pero en el año actual el
+        # del Ozono queda casi blanco y ahí el blanco desaparece (contraste
+        # 1.1). Ese segmento va entero en el aqua del año: es una decisión de
+        # identidad visual y no de legibilidad, porque el aqua sobre ese tono
+        # solo da 1.9 de contraste (el gris daría 7.4). Si alguna vez hay que
+        # priorizar que se lea, el arreglo de fondo es oscurecer el primer tono
+        # de ESCALA_EPISODIOS_ANIO_ACTUAL, no cambiar el color del texto.
+        'colores_texto_anio': [
+            [{'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO} for _ in contaminantes],
+            [
+                {'nombre': COLOR_2026, 'valor': COLOR_2026},         # Ozono
+                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},    # PM10
+                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},    # PM2.5
+            ],
+        ],
         'series': [
             {'nombre': c,
              'datos': [datos_25.get(c, 0), datos_26.get(c, 0)]}
@@ -3053,14 +3087,15 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                 }
                                 return '{n|' + s.nombre + '}\\n{v|' + p.value + '}';
                             },
-                            // El nombre del contaminante va en negro y el
-                            // número en el color de su año. El color del
-                            // número se reajusta por dato más abajo, porque
-                            // aquí solo se conoce el año de la leyenda, no el
-                            // de cada barra.
+                            // El color del texto lo decide el tono del relleno,
+                            // que depende del año y del contaminante: hay tonos
+                            // oscuros que piden letra blanca y claros que piden
+                            // letra oscura. Aquí se usa el año de la leyenda;
+                            // más abajo se reajusta por dato, que es donde se
+                            // conoce el año real de cada barra.
                             rich: {
-                                n: {fontSize: 11, color: '""" + COLOR_NEGRO + """', lineHeight: 13, align: 'center'},
-                                v: {fontSize: 16, fontWeight: 'bold', color: cfg.colores_anio[idxLeyenda], align: 'center'}
+                                n: {fontSize: 11, color: cfg.colores_texto_anio[idxLeyenda][i].nombre, lineHeight: 13, align: 'center'},
+                                v: {fontSize: 16, fontWeight: 'bold', color: cfg.colores_texto_anio[idxLeyenda][i].valor, align: 'center'}
                             }
                         },
                         labelLayout: {hideOverlap: true},
@@ -3110,13 +3145,14 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                 color: cfg.escalas_anio[j][i],
                                 borderColor: cfg.colores_anio[j]
                             },
-                            // El número toma el color del año de SU barra, no
-                            // el de la leyenda: así el 2025 se lee en azul y
-                            // el 2026 en aqua dentro de la misma gráfica.
+                            // El texto toma el color que le toca al tono de SU
+                            // relleno, no al de la leyenda: en la misma gráfica
+                            // conviven segmentos oscuros con letra blanca y
+                            // claros con letra oscura.
                             label: {
                                 rich: {
-                                    n: {fontSize: 11, color: '""" + COLOR_NEGRO + """', lineHeight: 13, align: 'center'},
-                                    v: {fontSize: 16, fontWeight: 'bold', color: cfg.colores_anio[j], align: 'center'}
+                                    n: {fontSize: 11, color: cfg.colores_texto_anio[j][i].nombre, lineHeight: 13, align: 'center'},
+                                    v: {fontSize: 16, fontWeight: 'bold', color: cfg.colores_texto_anio[j][i].valor, align: 'center'}
                                 }
                             }
                         };

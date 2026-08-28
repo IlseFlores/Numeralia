@@ -22,6 +22,7 @@ COLOR_BORDER = '#e4e7ec'
 COLOR_TEXT   = '#1a1d24'
 COLOR_MUTED  = '#6b7280'
 COLOR_NEGRO  = '#000000'   # rótulos que van en negro pleno, no en el casi-negro
+COLOR_BLANCO = '#ffffff'   # rótulos encima de un relleno oscuro
 
 # ── Paleta de marca ─────────────────────────────────────────────────────────
 # Solo estos 3 colores; el resto son tintes/sombras derivados de ellos.
@@ -36,12 +37,6 @@ COLOR_2026 = COLOR_ANIO_ACTUAL
 
 COLOR_GOOD = COLOR_ANIO_ACTUAL  # mapa: mejora (menos días de mala calidad)
 COLOR_BAD  = COLOR_ANIO_PREVIO  # mapa: empeora (más días de mala calidad)
-
-# Azul del año previo SOLO en las barras apiladas de episodios. Va aparte de
-# COLOR_ANIO_PREVIO porque el azul marino, al aclararse en tintes para el
-# degradado, tira a morado — y en esta gráfica el degradado es justo lo que
-# se mira. El resto del reporte sigue con el azul marino de marca.
-COLOR_EPISODIOS_ANIO_PREVIO = '#32629B'
 
 COLOR_GRIS_50   = '#f4f5f5'
 COLOR_GRIS_100  = '#e6e8e9'
@@ -84,6 +79,29 @@ def _luminancia(color_hex: str) -> float:
     return (0.299 * r + 0.587 * g + 0.114 * b) / 255
 
 
+def escala_serie_oscura(color_hex: str, n: int = 3, piso: float = 0.62) -> list:
+    """
+    ``n`` tonos del mismo color arrancando en el color pleno, para rellenos
+    oscuros con la etiqueta en blanco encima.
+
+    Es la contraparte de ``escala_serie``: esa parte de un tinte casi blanco
+    y oscurece, pensada para texto oscuro encima. Aquí el primer tono ES el
+    color de marca sin mezclar y los siguientes se aclaran solo hasta
+    ``piso``, que se queda alto a propósito — si la escala llegara a tintes
+    claros, el texto blanco desaparecería en los últimos segmentos.
+
+    Por eso el rango es corto: el compromiso es a favor de que la etiqueta se
+    lea siempre, y de que el color del año se reconozca de inmediato.
+    """
+    if n < 1:
+        raise ValueError(f"Se necesita al menos un tono, se pidieron {n}.")
+    if n == 1:
+        return [color_hex]
+
+    paso = (1.0 - piso) / (n - 1)
+    return [tinte(color_hex, 1.0 - paso * i) for i in range(n)]
+
+
 def escala_serie(color_hex: str, n: int = 3, luminancia_minima: float = 0.6) -> list:
     """
     ``n`` tonos del mismo color, del más claro al más oscuro.
@@ -115,8 +133,16 @@ def escala_serie(color_hex: str, n: int = 3, luminancia_minima: float = 0.6) -> 
 ESCALA_ANIO_PREVIO = escala_serie(COLOR_ANIO_PREVIO)
 ESCALA_ANIO_ACTUAL = escala_serie(COLOR_ANIO_ACTUAL)
 
-# Escala del año previo en las barras de episodios, con su azul propio.
-ESCALA_EPISODIOS_ANIO_PREVIO = escala_serie(COLOR_EPISODIOS_ANIO_PREVIO)
+# Escala del año previo en las barras de episodios: arranca en el azul marino
+# pleno y se aclara hacia arriba, con las etiquetas en blanco encima. Así la
+# barra del año previo se reconoce por su color de marca de un golpe de vista,
+# que es justo lo que la escala clara no lograba.
+#
+# El piso queda en el 0.62 por omisión: deja los tres tonos con contraste
+# 14.8 / 8.5 / 4.6 contra blanco, todos por encima del mínimo AA de 4.5.
+# Antes era 0.5, que aclaraba más el tono de arriba pero lo dejaba en 3.2 y
+# la etiqueta se perdía sobre él.
+ESCALA_EPISODIOS_ANIO_PREVIO = escala_serie_oscura(COLOR_ANIO_PREVIO)
 
 # Escala del año actual en esas mismas barras, más clara que la general. En
 # esa gráfica el número de cada segmento va en el color pleno del año, y con
@@ -128,7 +154,7 @@ ESCALA_EPISODIOS_ANIO_PREVIO = escala_serie(COLOR_EPISODIOS_ANIO_PREVIO)
 # tiene contra su propio relleno. Así las dos barras se leen igual de bien.
 # El costo es que los tres tonos del año actual quedan más parecidos entre
 # sí; la leyenda es la que carga con distinguir los contaminantes.
-ESCALA_EPISODIOS_ANIO_ACTUAL = escala_serie(COLOR_ANIO_ACTUAL, luminancia_minima=0.87)
+ESCALA_EPISODIOS_ANIO_ACTUAL = escala_serie(COLOR_ANIO_ACTUAL, luminancia_minima=0.100)
 
 # ── Severidad de episodios ──────────────────────────────────────────────────
 # Precontingencia -> Fase I -> Fase II -> Fase III.
