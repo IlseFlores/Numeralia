@@ -36,6 +36,55 @@
     flex-direction: column !important;
   }
 
+  /* Las tres fichas de arriba se convierten en carrusel horizontal en celular:
+     cada tarjeta ocupa ~85% de la pantalla y se desliza con snap. */
+  .fila-apilable.carrusel-kpis {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    scroll-snap-type: x mandatory !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 12px !important;
+    padding-bottom: 8px !important;
+    scrollbar-width: none !important;
+  }
+
+  .fila-apilable.carrusel-kpis::-webkit-scrollbar {
+    display: none;
+  }
+
+  .fila-apilable.carrusel-kpis > * {
+    flex: 0 0 95% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    width: auto !important;
+    scroll-snap-align: start !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Indicadores de página del carrusel */
+  .indicadores-kpis {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-top: 2px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .indicador-kpi {
+    width: 8px !important;
+    height: 8px !important;
+    border-radius: 50% !important;
+    background-color: #d0d5d9 !important;
+    cursor: pointer !important;
+    transition: background-color 0.2s ease !important;
+  }
+
+  .indicador-kpi.activo {
+    background-color: #191970 !important;
+  }
+
   .fila-apilable > * {
     min-width: 0 !important;
     flex-basis: auto !important;
@@ -52,6 +101,12 @@
 
   .fila-encabezado img {
     height: 52px !important;
+  }
+
+  /* El logo de SIMAJ es el protagonista visual del encabezado; en celular se
+     deja más grande que el SEMADET para que se lea y reconozca mejor. */
+  .fila-encabezado .logo-simaj {
+    height: 72px !important;
   }
 
   .titulo-reporte {
@@ -94,5 +149,49 @@
     border-top: 1px solid #e6e8e9 !important;
     padding-top: 16px !important;
     margin-top: 4px !important;
+  }
+
+  /* Bitácoras en acordeón: ocupan mucho espacio en celular y el usuario las
+     abre solo si las quiere ver. El título es el área clickable y el ícono de
+     descarga sigue a la derecha, fuera del título, para no disparar el toggle. */
+  .bitacora-titulo {
+    position: relative !important;
+    cursor: pointer !important;
+    padding-left: 20px !important;
+    padding-right: 0 !important;
+  }
+
+  .bitacora-titulo::after {
+    content: '▶' !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 4px !important;
+    font-size: 11px !important;
+    color: #465055 !important;
+    transition: transform 0.2s ease !important;
+  }
+
+  .bitacora-abierta .bitacora-titulo::after {
+    transform: rotate(90deg) !important;
+  }
+
+  /* En escritorio no se usa; en celular el contenido empieza oculto y se
+     muestra cuando la tarjeta lleva la clase 'bitacora-abierta'. Usamos
+     'visibility' + 'position: absolute' en vez de 'display: none' para que
+     Dash/DataTable siga midiendo el ancho real del contenedor y no se
+     descomponga al abrirse. */
+  .bitacora-cerrada .bitacora-contenido {
+    visibility: hidden !important;
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 100% !important;
+    z-index: -1 !important;
+  }
+
+  .bitacora-abierta .bitacora-contenido {
+    visibility: visible !important;
+    position: static !important;
+    z-index: auto !important;
   }
 }

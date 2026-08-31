@@ -121,7 +121,7 @@ from google.auth import default
 from gspread.http_client import BackOffHTTPClient
 from gspread_dataframe import set_with_dataframe
 
-from dash import Dash, html, dcc, dash_table, Input, Output
+from dash import Dash, html, dcc, dash_table, Input, Output, State, callback_context
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -1624,8 +1624,8 @@ def _encabezado_reporte():
     src_simaj = _logo_src(LOGO_SIMAJ)
     src_semadet = _logo_src(LOGO_SEMADET)
 
-    def _celda_logo(src, alineacion):
-        contenido = html.Img(src=src, style={
+    def _celda_logo(src, alineacion, clase_imagen=None):
+        contenido = html.Img(src=src, className=clase_imagen, style={
             'height': ALTO_LOGO, 'width': 'auto', 'display': 'block',
             # Sin maxWidth la imagen conserva su ancho natural y se sale de
             # la celda cuando la ventana se angosta.
@@ -1639,7 +1639,7 @@ def _encabezado_reporte():
     return html.Div([
         # Fila de logos + título
         html.Div([
-            _celda_logo(src_simaj, 'flex-start'),
+            _celda_logo(src_simaj, 'flex-start', 'logo-simaj'),
             html.Div([
                 html.H1('Reporte Diario de Calidad del Aire', className='titulo-reporte', style={
                     'margin': '0', 'fontSize': '37px', 'fontWeight': '600',
@@ -2576,15 +2576,22 @@ def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
 
     return html.Div([
         html.Div([
-            html.Div('Registro de Alertas y Emergencias Atmosféricas 2026', style={
-                'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px'}),
+            html.Div('Registro de Alertas y Emergencias Atmosféricas 2026',
+                     id='bitacora-alertas-header',
+                     className='bitacora-titulo',
+                     n_clicks=0,
+                     style={'flex': '1', 'color': COLOR_GRIS, 'fontWeight': '700',
+                            'fontSize': '18px'}),
             _icono_descarga('btn-pdf-alertas'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
                   'marginBottom': '4px'}),
-        _tabla_paginada(df, 'tabla-bitacora-alertas', columna_color=col_fase, mapa_color=mapa_color,
-                        texto_claro_valores=('Emergencia',)),
+        html.Div(
+            _tabla_paginada(df, 'tabla-bitacora-alertas', columna_color=col_fase, mapa_color=mapa_color,
+                            texto_claro_valores=('Emergencia',)),
+            className='bitacora-contenido'),
         dcc.Download(id='descarga-pdf-alertas'),
-    ], style={**CARD_STYLE, 'marginBottom': '20px'}), df
+    ], id='bitacora-alertas-wrapper', className='bitacora-cerrada',
+       style={**CARD_STYLE, 'position': 'relative', 'marginBottom': '20px'}), df
 
 
 def _card_bitacora_episodios(df_episodios_2026_raw: pd.DataFrame):
@@ -2616,15 +2623,22 @@ def _card_bitacora_episodios(df_episodios_2026_raw: pd.DataFrame):
 
     return html.Div([
         html.Div([
-            html.Div('Registro de Episodios de Mala calidad del aire 2026', style={
-                'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px'}),
+            html.Div('Registro de Episodios de Mala calidad del aire 2026',
+                     id='bitacora-episodios-header',
+                     className='bitacora-titulo',
+                     n_clicks=0,
+                     style={'flex': '1', 'color': COLOR_GRIS, 'fontWeight': '700',
+                            'fontSize': '18px'}),
             _icono_descarga('btn-pdf-episodios'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
                   'marginBottom': '4px'}),
-        _tabla_paginada(df, 'tabla-bitacora-episodios', columna_color=col_evento, mapa_color=mapa_color,
-                        texto_claro_valores=texto_claro),
+        html.Div(
+            _tabla_paginada(df, 'tabla-bitacora-episodios', columna_color=col_evento, mapa_color=mapa_color,
+                            texto_claro_valores=texto_claro),
+            className='bitacora-contenido'),
         dcc.Download(id='descarga-pdf-episodios'),
-    ], style={**CARD_STYLE, 'marginBottom': '20px'}), df
+    ], id='bitacora-episodios-wrapper', className='bitacora-cerrada',
+       style={**CARD_STYLE, 'position': 'relative', 'marginBottom': '20px'}), df
 
 
 # ── Recolección de datos y puente Colab → servidor ─────────────────────────
@@ -2751,8 +2765,16 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                  style={'flex': '1', 'minWidth': '260px', 'display': 'flex'}),
         dcc.Interval(id='refrescar-eventos',
                      interval=CONFIG.refresco_eventos_seg * 1000, n_intervals=0),
-    ], className='fila-apilable', style={'display': 'flex', 'gap': '16px', 'flexWrap': 'wrap',
+    ], className='fila-apilable carrusel-kpis', style={'display': 'flex', 'gap': '16px', 'flexWrap': 'wrap',
               'alignItems': 'stretch', 'marginBottom': '20px'})
+
+    # Indicadores de página del carrusel de KPIs; solo se muestran en celular
+    # (controlado por responsive_movil.css) y se activan con el script del index.
+    indicadores_kpis = html.Div([
+        html.Div(className='indicador-kpi activo', id='indicador-kpi-0'),
+        html.Div(className='indicador-kpi', id='indicador-kpi-1'),
+        html.Div(className='indicador-kpi', id='indicador-kpi-2'),
+    ], className='indicadores-kpis')
 
     episodios_card = html.Div([
         html.Div('Comparativo de Episodios de mala calidad del Aire 2025-2026', style={
@@ -2863,12 +2885,12 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         ], className='fila-apilable', style={'display': 'flex', 'gap': '10px', 'flexWrap': 'wrap'}),
         html.P([
             "El color y tamaño de cada burbuja representan el ",
-            html.B("cambio en días de mala calidad (2026 vs 2025)"),
+            html.B("cambio en días de buena calidad (2026 vs 2025)"),
             " por estación: ",
             html.Span("aqua", style={'color': COLOR_2026, 'fontWeight': '700'}),
-            " = tuvo menos días de mala calidad que el año pasado (mejora), ",
+            " = tuvo más días de buena calidad que el año pasado (mejora), ",
             html.Span("azul marino", style={'color': COLOR_2025, 'fontWeight': '700'}),
-            " = tuvo más (empeora); entre más grande la burbuja, mayor el cambio. "
+            " = tuvo menos (empeora); entre más grande la burbuja, mayor el cambio. "
             "Pasa el cursor sobre una estación para ver el comparativo completo en el panel de la derecha.",
         ], style={'color': COLOR_MUTED, 'fontSize': '14px', 'marginTop': '14px', 'marginBottom': '0'}),
     ], style={**CARD_STYLE, 'marginBottom': '20px'})
@@ -2951,6 +2973,68 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
       {%config%}
       {%scripts%}
       {%renderer%}
+      <script>
+      (function () {
+        let carruselActual = null;
+        function filtrarTarjetas(carrusel) {
+          return Array.from(carrusel.children).filter(function (el) {
+            return !el.id || !el.id.startsWith('refrescar');
+          });
+        }
+        function actualizarIndicadores() {
+          const carrusel = document.querySelector('.carrusel-kpis');
+          if (!carrusel) return;
+          const tarjetas = filtrarTarjetas(carrusel);
+          const dots = document.querySelectorAll('.indicador-kpi');
+          if (!dots.length || !tarjetas.length) return;
+          const carruselRect = carrusel.getBoundingClientRect();
+          const centro = carrusel.scrollLeft + carruselRect.width / 2;
+          let activo = 0;
+          tarjetas.forEach(function (tarjeta, i) {
+            const left = tarjeta.getBoundingClientRect().left - carruselRect.left + carrusel.scrollLeft;
+            const right = left + tarjeta.getBoundingClientRect().width;
+            if (centro >= left && centro < right) {
+              activo = i;
+            }
+          });
+          dots.forEach(function (dot, i) {
+            dot.classList.toggle('activo', i === activo);
+          });
+        }
+        function onScroll() { actualizarIndicadores(); }
+        function conectar() {
+          const carrusel = document.querySelector('.carrusel-kpis');
+          const dots = document.querySelectorAll('.indicador-kpi');
+          if (!carrusel || !dots.length) return;
+          if (carruselActual !== carrusel) {
+            if (carruselActual) {
+              carruselActual.removeEventListener('scroll', onScroll);
+            }
+            carruselActual = carrusel;
+            carruselActual.addEventListener('scroll', onScroll, {passive: true});
+            window.addEventListener('resize', actualizarIndicadores);
+          }
+          dots.forEach(function (dot) {
+            if (dot.dataset.conectado) return;
+            dot.dataset.conectado = '1';
+            dot.addEventListener('click', function () {
+              const idx = parseInt(dot.id.split('-').pop(), 10);
+              const c = carruselActual || document.querySelector('.carrusel-kpis');
+              if (!c) return;
+              const tarjetas = filtrarTarjetas(c);
+              const tarjeta = tarjetas[idx];
+              if (tarjeta) {
+                const left = tarjeta.getBoundingClientRect().left - c.getBoundingClientRect().left + c.scrollLeft;
+                c.scrollTo({left: left, behavior: 'smooth'});
+              }
+            });
+          });
+          actualizarIndicadores();
+        }
+        const observer = new MutationObserver(function () { conectar(); });
+        observer.observe(document.body, {childList: true, subtree: true});
+      })();
+      </script>
     </footer>
   </body>
 </html>'''
@@ -2968,6 +3052,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         html.Div([
             _encabezado_reporte(),
             kpis,
+            indicadores_kpis,
             episodios_card,
             html.Div([alertas_card, imeca_card], className='fila-apilable',
                      style={'display': 'flex', 'gap': '20px', 'flexWrap': 'wrap'}),
@@ -3009,6 +3094,26 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         if estacion not in acumulado_idx.index:
             return _detalle_placeholder()
         return _tabla_detalle_estacion(estacion, acumulado_idx.loc[estacion])
+
+    # En celular las bitácoras largas empiezan colapsadas y se abren al tocar el
+    # título. En escritorio la regla simplemente no aplica, así que el estado de
+    # la clase no afecta la visibilidad.
+    @app.callback(
+        Output('bitacora-alertas-wrapper', 'className'),
+        Output('bitacora-episodios-wrapper', 'className'),
+        Input('bitacora-alertas-header', 'n_clicks'),
+        Input('bitacora-episodios-header', 'n_clicks'),
+        State('bitacora-alertas-wrapper', 'className'),
+        State('bitacora-episodios-wrapper', 'className'),
+        prevent_initial_call=True
+    )
+    def _toggle_bitacoras(n_alertas, n_episodios, clase_alertas, clase_episodios):
+        trigger = callback_context.triggered[0]['prop_id'].split('.')[0] if callback_context.triggered else None
+        if trigger == 'bitacora-alertas-header':
+            clase_alertas = 'bitacora-cerrada' if clase_alertas == 'bitacora-abierta' else 'bitacora-abierta'
+        elif trigger == 'bitacora-episodios-header':
+            clase_episodios = 'bitacora-cerrada' if clase_episodios == 'bitacora-abierta' else 'bitacora-abierta'
+        return clase_alertas, clase_episodios
 
     # Estos dos callbacks releen de Sheets cada 20s. Solo se registran si hay
     # conexión: en el servidor, que trabaja con el JSON, no hay credenciales
