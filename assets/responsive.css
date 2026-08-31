@@ -12,10 +12,15 @@
  * forma de sobrescribirlos sin reescribir el layout entero en clases. Si algún
  * día las tarjetas se migran a clases, estos `!important` se pueden quitar.
  *
- * Dos cortes:
+ * Aquí vive un solo corte:
  *   · <= 1024px  tablet — se aprieta el margen exterior, se sueltan los
  *                anchos mínimos y las gráficas entran en modo compacto.
- *   · <=  767px  celular — todo pasa a una sola columna, en el mismo orden.
+ *
+ * El corte de celular (<= 767px) se mudó a `responsive_movil.css`, para poder
+ * ajustar el teléfono sin mover nada de lo de arriba. Ese archivo se carga
+ * después que este — Dash sirve los assets en orden alfabético y el `_` va
+ * después del `.` —, que es justo lo que necesita para pisar estas reglas de
+ * tablet en las pantallas chicas.
  */
 
 /* ── Puente con el JavaScript ─────────────────────────────────────────────
@@ -109,75 +114,3 @@ body.capturando-pdf .grafica-mapa {
   }
 }
 
-/* ── Celular ──────────────────────────────────────────────────────────── */
-@media (max-width: 767px) {
-  .lienzo-reporte {
-    padding: 14px 10px !important;
-  }
-
-  /* Una sola columna. `column` respeta el orden del DOM, así que las
-     tarjetas quedan en la misma secuencia que en escritorio. */
-  .fila-apilable {
-    flex-direction: column !important;
-  }
-
-  .fila-apilable > * {
-    min-width: 0 !important;
-    flex-basis: auto !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-  }
-
-  /* Encabezado: logo, título y logo uno debajo del otro. Los logos se
-     encogen porque a 77px de alto se comen la primera pantalla completa. */
-  .fila-encabezado {
-    flex-direction: column !important;
-    gap: 12px !important;
-  }
-
-  .fila-encabezado img {
-    height: 52px !important;
-  }
-
-  .titulo-reporte {
-    font-size: 25px !important;
-  }
-
-  .fecha-reporte {
-    font-size: 16px !important;
-  }
-
-  /* Un poco más altas que en tablet: aquí cada gráfica ocupa todo el ancho
-     (~330px) y una caja demasiado achatada se ve rara. Con 380px menos 78 de
-     márgenes internos quedan 302px de área de barras → ~30px por segmento. */
-  #echart-precontingencias,
-  #echart-contingencias-f1 {
-    height: 380px !important;
-  }
-
-  .grafica-serie-mensual {
-    height: 260px !important;
-  }
-
-  .grafica-mapa {
-    height: 340px !important;
-  }
-
-  /* Las tablas conservan sus columnas y se deslizan de lado dentro de su
-     tarjeta. El `overflow: hidden` original recortaba las columnas de la
-     derecha sin dar manera de llegar a ellas. */
-  .tabla-scroll {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* Apilado, el panel de detalle del mapa lleva su separador arriba y no a
-     la izquierda, que es donde ya no hay nada. */
-  .panel-detalle-mapa {
-    border-left: none !important;
-    padding-left: 0 !important;
-    border-top: 1px solid #e6e8e9 !important;
-    padding-top: 16px !important;
-    margin-top: 4px !important;
-  }
-}
