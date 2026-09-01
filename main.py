@@ -3657,6 +3657,11 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     forzarEstilo(parejaGraficas, 'flex', '1 1 400px');
                     forzarEstilo(parejaGraficas, 'min-width', '380px');
                     forzarEstilo(parejaGraficas, 'width', 'auto');
+                    // Las dos imágenes sustitutas quedan con un ancho fijo
+                    // en píxeles (ver 'sustituir'); si el espacio disponible
+                    // sobra, sin esto se pegan a la izquierda en vez de
+                    // quedar centradas como pareja.
+                    forzarEstilo(parejaGraficas, 'justify-content', 'center');
                 }
                 if (tablaEpisodios) {
                     forzarEstilo(tablaEpisodios, 'flex', '1 1 420px');
@@ -3817,7 +3822,14 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 if (url) { await sustituir(div, url); }
             }
 
-            // Gráficas de ECharts (barras de episodios).
+            // Gráficas de ECharts (barras de episodios). Las dos se miden y
+            // se convierten a imagen ANTES de sustituir ninguna: si se
+            // sustituyera una y LUEGO se midiera la otra, la primera ya
+            // habría dejado de ser un elemento flex (la imagen tiene ancho
+            // fijo), y eso le regala todo el espacio que sobra a la segunda
+            // — que es justo por lo que una barra salía de un tamaño y la
+            // otra de otro.
+            const capturasEpisodios = [];
             for (const id of ['echart-precontingencias', 'echart-contingencias-f1']) {
                 const div = document.getElementById(id);
                 if (!div) { continue; }
@@ -3825,10 +3837,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 if (!inst) { continue; }
                 try {
                     // Se remide justo antes de fotografiar. Hace falta porque
-                    // la sustitución de la vuelta anterior saca un div del
-                    // flujo y cambia el ancho disponible del que sigue, y
-                    // porque ECharts no remide solo: el PNG saldría con las
-                    // medidas viejas y la imagen se vería estirada.
+                    // ECharts no remide solo: el PNG saldría con las medidas
+                    // viejas y la imagen se vería estirada.
                     inst.resize();
                     await new Promise(res => requestAnimationFrame(() =>
                                               requestAnimationFrame(res)));
@@ -3837,10 +3847,14 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     // sustituta, en vez de dejarla calcular su propio tamaño
                     // con 'width:100%' + 'height:auto' (ver 'sustituir').
                     const caja = div.getBoundingClientRect();
-                    await sustituir(div, inst.getDataURL({
+                    const url = inst.getDataURL({
                         type: 'png', pixelRatio: 2, backgroundColor: '#ffffff'
-                    }), {ancho: caja.width, alto: caja.height});
+                    });
+                    capturasEpisodios.push({div, url, ancho: caja.width, alto: caja.height});
                 } catch (e) { console.warn('ECharts ' + id, e); }
+            }
+            for (const c of capturasEpisodios) {
+                await sustituir(c.div, c.url, {ancho: c.ancho, alto: c.alto});
             }
 
             // Los botones no tienen sentido en el PDF.
@@ -3851,24 +3865,46 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             await new Promise(res => setTimeout(res, 400));
 
             try {
-                const pdf = new jspdf.jsPDF('l', 'mm', 'a4');
-                const anchoPag = pdf.internal.pageSize.getWidth();
-                const altoPag = pdf.internal.pageSize.getHeight();
-                const margen = 8;
-                const anchoUtil = anchoPag - margen * 2;
-                const altoUtil = altoPag - margen * 2;
-
-                let primera = true;
+                // Se capturan las tres páginas ANTES de armar el PDF, porque
+                // la orientación de cada hoja se decide con la forma real de
+                // su contenido (ver abajo) y eso hay que conocerlo desde la
+                // primera página, no solo desde la segunda en adelante.
+                const lienzos = [];
                 for (const idPag of ['pdf-pagina-1', 'pdf-pagina-2', 'pdf-pagina-3']) {
                     const bloque = document.getElementById(idPag);
                     if (!bloque) { continue; }
-
-                    const lienzo = await html2canvas(bloque, {
+                    lienzos.push(await html2canvas(bloque, {
                         scale: 2, backgroundColor: '#ffffff',
                         useCORS: true, logging: false,
                         windowWidth: bloque.scrollWidth,
                         windowHeight: bloque.scrollHeight
-                    });
+                    }));
+                }
+
+                const margen = 8;
+                let pdf = null;
+                lienzos.forEach(function (lienzo) {
+                    // Orientación según la forma real del contenido, en vez
+                    // de horizontal fija para las tres: la página de KPIs +
+                    // episodios es ancha y corta y cabe bien en horizontal,
+                    // pero la del mapa y la de las bitácoras apilan tarjetas
+                    // completas y salen más altas que anchas — en horizontal
+                    // se ahogan de márgenes en los costados para no
+                    // desbordar por arriba/abajo. Cada hoja usa la que le
+                    // deje menos espacio en blanco.
+                    const vertical = lienzo.height > lienzo.width;
+                    const orientacion = vertical ? 'p' : 'l';
+
+                    if (!pdf) {
+                        pdf = new jspdf.jsPDF(orientacion, 'mm', 'a4');
+                    } else {
+                        pdf.addPage('a4', orientacion);
+                    }
+
+                    const anchoPag = pdf.internal.pageSize.getWidth();
+                    const altoPag = pdf.internal.pageSize.getHeight();
+                    const anchoUtil = anchoPag - margen * 2;
+                    const altoUtil = altoPag - margen * 2;
 
                     // Se escala por el lado que primero se topa con el borde,
                     // así el bloque cabe entero en la hoja y se centra.
@@ -3877,12 +3913,11 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     const ancho = lienzo.width * escala;
                     const alto = lienzo.height * escala;
 
-                    if (!primera) { pdf.addPage(); }
-                    primera = false;
-
                     pdf.addImage(lienzo.toDataURL('image/png'), 'PNG',
-                                 (anchoPag - ancho) / 2, margen, ancho, alto);
-                }
+                                 (anchoPag - ancho) / 2, (altoPag - alto) / 2, ancho, alto);
+                });
+
+                if (!pdf) { throw new Error('No hay páginas que exportar.'); }
 
                 const hoy = new Date().toISOString().slice(0, 10);
                 pdf.save('Reporte_Calidad_del_Aire_' + hoy + '.pdf');
