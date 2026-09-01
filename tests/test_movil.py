@@ -411,10 +411,10 @@ class TestEncabezadoLogos:
 class TestCssMovil:
     """
     Regresión de las reglas de las que depende todo lo de arriba: si alguien
-    edita el CSS y borra sin querer una de estas reglas, el acordeón, el
-    carrusel o el logo grande dejan de funcionar en el navegador sin que
-    ningún test de Python se dé cuenta directamente. Esto al menos avisa que
-    la regla sigue en el archivo.
+    edita el CSS y borra sin querer una de estas reglas, el acordeón o el
+    logo grande dejan de funcionar en el navegador sin que ningún test de
+    Python se dé cuenta directamente. Esto al menos avisa que la regla sigue
+    en el archivo.
     """
 
     @pytest.fixture(scope="module")
@@ -440,14 +440,25 @@ class TestCssMovil:
         assert bloque is not None
         assert "padding-left" in bloque.group(1)
 
-    def test_hay_reglas_para_el_carrusel_de_kpis(self, css):
-        for selector in (".carrusel-kpis", ".indicador-kpi", ".indicador-kpi.activo"):
-            assert selector in css, f"Falta la regla para {selector}"
+    def test_no_quedaron_restos_del_carrusel_de_kpis(self, css):
+        # El carrusel se quitó a pedido del usuario: las fichas de KPIs
+        # vuelven a apilarse verticalmente como cualquier '.fila-apilable'.
+        for selector in ("carrusel-kpis", "indicador-kpi", "indicadores-kpis"):
+            assert selector not in css, f"Quedó un resto del carrusel: {selector}"
 
-    def test_las_tarjetas_del_carrusel_ocupan_95_por_ciento(self, css):
-        bloque = re.search(r"\.carrusel-kpis\s*>\s*\*\s*\{([^}]*)\}", css)
+    def test_imeca_se_apila_en_columna_invertida(self, css):
+        # 'column-reverse' porque en el DOM 2025 va primero y 2026 debe
+        # quedar arriba (es el año en curso).
+        bloque = re.search(r"\.fila-imeca\s*\{([^}]*)\}", css)
         assert bloque is not None
-        assert "95%" in bloque.group(1)
+        assert "column-reverse" in bloque.group(1)
+
+    def test_el_acento_de_imeca_pasa_a_borde_superior(self, css):
+        bloque = re.search(r"\.bloque-imeca-anio\s*\{([^}]*)\}", css)
+        assert bloque is not None
+        contenido = bloque.group(1)
+        assert "border-top" in contenido
+        assert "var(--color-acento)" in contenido
 
     def test_llaves_balanceadas(self, css):
         assert css.count("{") == css.count("}")
@@ -482,30 +493,19 @@ def _extraer_index_string() -> str:
     return fuente[inicio:fin]
 
 
-class TestIndexStringCarrusel:
+class TestIndexString:
     """
-    Sanity checks del script que mueve las bolitas del carrusel de KPIs.
-    No hay runtime de navegador en este repo, así que esto solo confirma que
-    el bloque sigue ahí, que sus ganchos (selectors) siguen escritos igual
-    que el CSS/HTML que genera Python, y que las llaves están balanceadas.
+    Sanity checks del HTML/CSS embebido en ``app.index_string``. No hay
+    runtime de navegador en este repo, así que esto solo confirma que las
+    reglas de las que depende el PDF siguen ahí y que las llaves están
+    balanceadas.
     """
 
     @pytest.fixture(scope="module")
     def index_html(self):
         return _extraer_index_string()
 
-    def test_el_script_del_carrusel_esta_presente(self, index_html):
-        assert "MutationObserver" in index_html
-        assert "carrusel-kpis" in index_html
-        assert "indicador-kpi" in index_html
-
-    def test_usa_los_mismos_selectores_que_genera_python(self, index_html):
-        # Si en main.py cambia el className de la fila de KPIs o de los
-        # indicadores sin actualizar el script, el carrusel se queda mudo.
-        assert ".carrusel-kpis" in index_html
-        assert ".indicador-kpi" in index_html
-
-    def test_las_llaves_de_todo_el_index_string_estan_balanceadas(self, index_html):
+    def test_las_llaves_estan_balanceadas(self, index_html):
         # Cuenta === no basta con strings JS que interpolan color de Python
         # (ej. '""" + COLOR_GRIS + """'), pero esas comillas no meten llaves,
         # así que el conteo simple es válido aquí.
@@ -535,3 +535,17 @@ class TestFuenteMainPy:
         # versión de escritorio, sin animación, ANTES de fotografiarlas: sin
         # este gancho, la gráfica sale con medidas viejas y se ve estirada.
         assert "__redibujarEpisodios" in fuente
+
+    def test_el_mapa_reduce_el_zoom_solo_en_celular(self, fuente):
+        # Se compara contra window.innerWidth (no contra --modo-compacto,
+        # que también se enciende en tablet) porque el pedido fue "solo en
+        # celular", y en tablet el mapa ya se ve bien tal cual.
+        assert "ZOOM_CELULAR" in fuente
+        assert "window.innerWidth" in fuente
+        assert "map.zoom" in fuente
+
+    def test_el_mapa_no_se_apoya_en_modo_compacto(self, fuente):
+        bloque_zoom = re.search(
+            r"function esCelular\(\)\s*\{([^}]*)\}", fuente)
+        assert bloque_zoom is not None
+        assert "modo-compacto" not in bloque_zoom.group(1)

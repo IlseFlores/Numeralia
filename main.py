@@ -2406,14 +2406,20 @@ def _card_imeca(df_imeca: pd.DataFrame):
                 html.Div([html.Span('Hora  ', style={'color': COLOR_GRIS_MUTE}),
                           html.B(_get(anio, 'Hora'), style={'color': COLOR_GRIS})]),
             ], style={'fontSize': '15px', 'display': 'grid', 'gap': '4px'}),
-        ], style={'flex': '1', 'padding': '18px 22px', 'borderLeft': f'4px solid {color}'})
+        ], className='bloque-imeca-anio', style={'flex': '1', 'padding': '18px 22px',
+                  'borderLeft': f'4px solid {color}', '--color-acento': color})
 
     return html.Div([
         html.Div('IMECA Máximo Registrado', style={'color': COLOR_GRIS, 'fontWeight': '700',
                                                      'fontSize': '17px', 'marginBottom': '4px'}),
         html.Div('Valor más alto del índice en el año, por contaminante y estación.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '14px', 'marginBottom': '12px'}),
+        # 'fila-imeca': en celular se apila en columna (ver
+        # assets/responsive_movil.css) y, como 2025 va primero en el DOM, se
+        # invierte con 'column-reverse' para que 2026 —el año en curso—
+        # quede arriba.
         html.Div([_bloque_anio('2025', COLOR_2025), _bloque_anio('2026', COLOR_2026)],
+                  className='fila-imeca',
                   style={'display': 'flex', 'border': f'1px solid {COLOR_GRIS_100}',
                          'borderRadius': '12px', 'overflow': 'hidden'}),
     ])
@@ -2779,16 +2785,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                  style={'flex': '1', 'minWidth': '260px', 'display': 'flex'}),
         dcc.Interval(id='refrescar-eventos',
                      interval=CONFIG.refresco_eventos_seg * 1000, n_intervals=0),
-    ], className='fila-apilable carrusel-kpis', style={'display': 'flex', 'gap': '16px', 'flexWrap': 'wrap',
+    ], className='fila-apilable', style={'display': 'flex', 'gap': '16px', 'flexWrap': 'wrap',
               'alignItems': 'stretch', 'marginBottom': '20px'})
-
-    # Indicadores de página del carrusel de KPIs; solo se muestran en celular
-    # (controlado por responsive_movil.css) y se activan con el script del index.
-    indicadores_kpis = html.Div([
-        html.Div(className='indicador-kpi activo', id='indicador-kpi-0'),
-        html.Div(className='indicador-kpi', id='indicador-kpi-1'),
-        html.Div(className='indicador-kpi', id='indicador-kpi-2'),
-    ], className='indicadores-kpis')
 
     episodios_card = html.Div([
         html.Div('Comparativo de Episodios de mala calidad del Aire 2025-2026', style={
@@ -2877,6 +2875,15 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                          style={'position': 'absolute', 'width': '1px',
                                 'height': '1px', 'opacity': '0',
                                 'pointerEvents': 'none', 'left': '-9999px'}),
+                # Dispara, una sola vez al cargar, el ajuste de zoom del mapa
+                # en celular (ver clientside_callback correspondiente). No
+                # tiene otro propósito: Dash exige un Input real y la figura
+                # no vive en un Store como la de la serie mensual.
+                dcc.Store(id='mapa-cargado', data=True),
+                # Destino de descarte de ese mismo callback (dibuja
+                # directamente con Plotly.relayout y no devuelve nada útil,
+                # pero Dash exige una salida).
+                dcc.Store(id='mapa-zoom-ajustado'),
             ], style={'flex': '2', 'minWidth': '320px'}),
             html.Div([
                 # Encabezado del panel: título y aclaración van juntos como un
@@ -2987,68 +2994,6 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
       {%config%}
       {%scripts%}
       {%renderer%}
-      <script>
-      (function () {
-        let carruselActual = null;
-        function filtrarTarjetas(carrusel) {
-          return Array.from(carrusel.children).filter(function (el) {
-            return !el.id || !el.id.startsWith('refrescar');
-          });
-        }
-        function actualizarIndicadores() {
-          const carrusel = document.querySelector('.carrusel-kpis');
-          if (!carrusel) return;
-          const tarjetas = filtrarTarjetas(carrusel);
-          const dots = document.querySelectorAll('.indicador-kpi');
-          if (!dots.length || !tarjetas.length) return;
-          const carruselRect = carrusel.getBoundingClientRect();
-          const centro = carrusel.scrollLeft + carruselRect.width / 2;
-          let activo = 0;
-          tarjetas.forEach(function (tarjeta, i) {
-            const left = tarjeta.getBoundingClientRect().left - carruselRect.left + carrusel.scrollLeft;
-            const right = left + tarjeta.getBoundingClientRect().width;
-            if (centro >= left && centro < right) {
-              activo = i;
-            }
-          });
-          dots.forEach(function (dot, i) {
-            dot.classList.toggle('activo', i === activo);
-          });
-        }
-        function onScroll() { actualizarIndicadores(); }
-        function conectar() {
-          const carrusel = document.querySelector('.carrusel-kpis');
-          const dots = document.querySelectorAll('.indicador-kpi');
-          if (!carrusel || !dots.length) return;
-          if (carruselActual !== carrusel) {
-            if (carruselActual) {
-              carruselActual.removeEventListener('scroll', onScroll);
-            }
-            carruselActual = carrusel;
-            carruselActual.addEventListener('scroll', onScroll, {passive: true});
-            window.addEventListener('resize', actualizarIndicadores);
-          }
-          dots.forEach(function (dot) {
-            if (dot.dataset.conectado) return;
-            dot.dataset.conectado = '1';
-            dot.addEventListener('click', function () {
-              const idx = parseInt(dot.id.split('-').pop(), 10);
-              const c = carruselActual || document.querySelector('.carrusel-kpis');
-              if (!c) return;
-              const tarjetas = filtrarTarjetas(c);
-              const tarjeta = tarjetas[idx];
-              if (tarjeta) {
-                const left = tarjeta.getBoundingClientRect().left - c.getBoundingClientRect().left + c.scrollLeft;
-                c.scrollTo({left: left, behavior: 'smooth'});
-              }
-            });
-          });
-          actualizarIndicadores();
-        }
-        const observer = new MutationObserver(function () { conectar(); });
-        observer.observe(document.body, {childList: true, subtree: true});
-      })();
-      </script>
     </footer>
   </body>
 </html>'''
@@ -3066,7 +3011,6 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         html.Div([
             _encabezado_reporte(),
             kpis,
-            indicadores_kpis,
             episodios_card,
             html.Div([alertas_card, imeca_card], className='fila-apilable',
                      style={'display': 'flex', 'gap': '20px', 'flexWrap': 'wrap'}),
@@ -3554,6 +3498,56 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         """,
         Output('grafico-serie-mensual', 'figure'),
         Input('figura-serie-base', 'data'),
+    )
+
+    # ── Mapa: menos zoom en celular ───────────────────────────────────────
+    #
+    # El zoom de 10.3 con el que se genera el mapa (ver _fig_mapa) se pensó
+    # para el ancho de escritorio; en un teléfono, con la mitad del espacio,
+    # se ve demasiado cerca y cuesta ubicar las estaciones entre sí. Se ajusta
+    # aquí y no en Python porque el servidor no sabe el ancho de la pantalla.
+    #
+    # Solo aplica en celular (<= 767px), no en tablet: en tablet el mapa ya
+    # se ve bien tal cual. Por eso se compara contra window.innerWidth en vez
+    # de reusar '--modo-compacto', que se enciende también en tablet.
+    #
+    # No afecta al PDF: la imagen del mapa que va en el PDF es la que genera
+    # Python con kaleido (ver 'mapa-estatico'), siempre al zoom de escritorio,
+    # y no pasa por este callback.
+    app.clientside_callback(
+        """
+        function(_disparo) {
+            const UMBRAL_CELULAR = 767;
+            const ZOOM_ESCRITORIO = 10.3;
+            const ZOOM_CELULAR = 9.3;
+
+            function esCelular() { return window.innerWidth <= UMBRAL_CELULAR; }
+
+            function ajustar() {
+                const zoom = esCelular() ? ZOOM_CELULAR : ZOOM_ESCRITORIO;
+                Plotly.relayout('mapa-grafico', {'map.zoom': zoom});
+            }
+
+            if (!window.__mapaResizeBound) {
+                window.__mapaResizeBound = true;
+                let eraCelularAntes = esCelular();
+                window.addEventListener('resize', function () {
+                    const esCelularAhora = esCelular();
+                    // Solo al cruzar el umbral, igual que con el cintillo de
+                    // la serie mensual: no hace falta redibujar en cada
+                    // píxel del arrastre.
+                    if (esCelularAhora === eraCelularAntes) { return; }
+                    eraCelularAntes = esCelularAhora;
+                    ajustar();
+                });
+            }
+
+            ajustar();
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('mapa-zoom-ajustado', 'data'),
+        Input('mapa-cargado', 'data'),
     )
 
     # ── PDF del dashboard: captura y descarga directa ────────────────────
