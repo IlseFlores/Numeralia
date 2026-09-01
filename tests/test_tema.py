@@ -7,8 +7,10 @@ from numeralia.reporte.tema import (
     COLOR_ANIO_PREVIO,
     ESCALA_ANIO_ACTUAL,
     ESCALA_ANIO_PREVIO,
+    ESCALA_EPISODIOS_ANIO_PREVIO,
     _luminancia,
     escala_serie,
+    escala_serie_oscura,
     tinte,
 )
 
@@ -92,3 +94,46 @@ class TestEscalaSerie:
 
     def test_las_dos_escalas_del_reporte_tienen_tres_tonos(self):
         assert len(ESCALA_ANIO_PREVIO) == len(ESCALA_ANIO_ACTUAL) == 3
+
+
+class TestEscalaSerieOscura:
+    """
+    Contraparte de ``escala_serie``: arranca en el color pleno y aclara, para
+    rellenos oscuros con la etiqueta en blanco encima.
+    """
+
+    def test_devuelve_los_tonos_pedidos(self):
+        assert len(escala_serie_oscura("#191970", n=3)) == 3
+        assert len(escala_serie_oscura("#191970", n=5)) == 5
+
+    def test_el_primer_tono_es_el_color_de_marca_sin_mezclar(self):
+        # Es lo que hace que la barra del año previo se reconozca de un golpe
+        # de vista; la escala clara no lo lograba.
+        assert escala_serie_oscura(COLOR_ANIO_PREVIO)[0] == COLOR_ANIO_PREVIO.lower()
+
+    def test_va_de_oscuro_a_claro(self):
+        lums = [_luminancia(c) for c in escala_serie_oscura("#191970", n=4)]
+        assert lums == sorted(lums)
+
+    def test_el_piso_limita_cuanto_aclara(self):
+        # Con un piso más alto, el tono final conserva más color y queda más
+        # oscuro. Es el parámetro que se subió de 0.5 a 0.62 porque el tono
+        # claro se tragaba la etiqueta blanca.
+        claro = escala_serie_oscura(COLOR_ANIO_PREVIO, piso=0.5)[-1]
+        oscuro = escala_serie_oscura(COLOR_ANIO_PREVIO, piso=0.62)[-1]
+        assert _luminancia(oscuro) < _luminancia(claro)
+
+    def test_un_solo_tono_es_el_color_pleno(self):
+        assert escala_serie_oscura("#191970", n=1) == ["#191970"]
+
+    def test_cero_tonos_es_un_error(self):
+        with pytest.raises(ValueError):
+            escala_serie_oscura("#191970", n=0)
+
+    def test_los_tonos_son_distinguibles_entre_si(self):
+        lums = [_luminancia(c) for c in ESCALA_EPISODIOS_ANIO_PREVIO]
+        for a, b in zip(lums, lums[1:]):
+            assert b - a >= 0.10
+
+    def test_la_escala_de_episodios_usa_el_piso_por_omision(self):
+        assert ESCALA_EPISODIOS_ANIO_PREVIO == escala_serie_oscura(COLOR_ANIO_PREVIO)

@@ -1,0 +1,116 @@
+/*
+ * Cortes responsive del reporte.
+ *
+ * Dash sirve solo lo que esté en esta carpeta: no hay que registrar el
+ * archivo en ningún lado, basta con que exista. Los estilos de impresión y
+ * los globales siguen en el `index_string` de main.py; aquí va únicamente lo
+ * que depende del ancho de la pantalla.
+ *
+ * Sobre el `!important`: el layout se arma con estilos en línea desde Python
+ * (`style={...}` en cada componente), y un estilo en línea le gana a
+ * cualquier regla de hoja externa sin importar la especificidad. Es la única
+ * forma de sobrescribirlos sin reescribir el layout entero en clases. Si algún
+ * día las tarjetas se migran a clases, estos `!important` se pueden quitar.
+ *
+ * Aquí vive un solo corte:
+ *   · <= 1024px  tablet — se aprieta el margen exterior, se sueltan los
+ *                anchos mínimos y las gráficas entran en modo compacto.
+ *
+ * El corte de celular (<= 767px) se mudó a `responsive_movil.css`, para poder
+ * ajustar el teléfono sin mover nada de lo de arriba. Ese archivo se carga
+ * después que este — Dash sirve los assets en orden alfabético y el `_` va
+ * después del `.` —, que es justo lo que necesita para pisar estas reglas de
+ * tablet en las pantallas chicas.
+ */
+
+/* ── Puente con el JavaScript ─────────────────────────────────────────────
+ *
+ * ECharts dibuja desde JS y no obedece CSS: para achicar su tipografía y sus
+ * márgenes internos, el JS tiene que enterarse de que estamos en pantalla
+ * chica. Se lo decimos con esta variable en vez de que él mida el ancho de la
+ * gráfica, porque medir NO funciona: en escritorio esas gráficas van en pareja
+ * y miden ~277px, casi lo mismo que en tablet (~232px). Cualquier umbral de
+ * ancho que agarre al celular agarra también al escritorio.
+ *
+ * Así el breakpoint vive en un solo lugar —este archivo— y el JS solo lee.
+ */
+:root {
+  --modo-compacto: 0;
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --modo-compacto: 1;
+  }
+}
+
+/* Durante la captura del PDF el layout se ensancha a 1280px, así que las
+   gráficas deben volver a su versión de escritorio aunque la ventana siga
+   siendo la de un celular. La variable se lee del body justamente para que
+   esta regla la pueda pisar. */
+body.capturando-pdf {
+  --modo-compacto: 0;
+}
+
+/* Y por lo mismo, los altos vuelven a los de escritorio durante la captura:
+   las medias queries de abajo miran la VENTANA, que sigue siendo la del
+   celular, así que sin esto el PDF saldría con las gráficas achatadas. Estos
+   tres valores son los mismos que el `style` en línea de cada gráfica en
+   main.py (el de episodios viene de ALTO_GRAFICA_EPISODIOS, en tema.py).
+   Estas reglas ganan a las de las medias queries por especificidad, no por
+   orden: llevan un selector más. */
+body.capturando-pdf #echart-precontingencias,
+body.capturando-pdf #echart-contingencias-f1 {
+  height: 450px !important;
+}
+
+body.capturando-pdf .grafica-serie-mensual {
+  height: 330px !important;
+}
+
+body.capturando-pdf .grafica-mapa {
+  height: 520px !important;
+}
+
+/* ── Tablet ───────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .lienzo-reporte {
+    padding: 20px 16px !important;
+  }
+
+  /* Los anchos mínimos (260-420px) son los que obligaban al scroll
+     horizontal. Al soltarlos, el `flex-wrap: wrap` que ya traían las filas
+     hace el acomodo solo. */
+  .fila-apilable > * {
+    min-width: 0 !important;
+  }
+
+  /* ── Alto de las gráficas ───────────────────────────────────────────────
+   *
+   * En tablet las dos de episodios siguen lado a lado junto a la tabla, así
+   * que cada una mide ~232px de ancho: con 450px de alto quedaban altísimas y
+   * flacas. Se pueden achicar porque en modo compacto el JS encoge también el
+   * margen del título y la tipografía, dejando más área útil para las barras.
+   *
+   * El piso no es libre: sobre el área de barras se reparten 3 segmentos
+   * apilados. Con 360px de alto menos 78 de márgenes internos quedan 282px, y
+   * la barra del año actual (49 de 162) se lleva 85px repartidos en 3 → 28px
+   * por segmento. Cómodo para un número de 13px. Por debajo de ~320px los
+   * segmentos empiezan a caer al mínimo de `barMinHeight`.
+   */
+  #echart-precontingencias,
+  #echart-contingencias-f1 {
+    height: 360px !important;
+  }
+
+  /* Estas dos son de Plotly y su alto lo manda el contenedor (la figura ya no
+     lo fija), así que basta con CSS. */
+  .grafica-serie-mensual {
+    height: 270px !important;
+  }
+
+  .grafica-mapa {
+    height: 400px !important;
+  }
+}
+

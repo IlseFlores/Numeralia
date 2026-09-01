@@ -1,0 +1,166 @@
+/*
+ * Cortes responsive para CELULAR (<= 767px).
+ *
+ * Este archivo es el compañero de `responsive.css`, que se quedó con lo
+ * global, lo de impresión y el corte de tablet (<= 1024px). Se separaron para
+ * poder tocar el teléfono sin arriesgar el escritorio: aquí adentro no hay
+ * una sola regla que aplique arriba de 767px.
+ *
+ * IMPORTANTE — el nombre del archivo importa. Dash sirve los `assets` en
+ * orden alfabético, y en ese orden `responsive.css` va primero y
+ * `responsive_movil.css` después (el `_` va después del `.`). Ese orden es el
+ * que hace que estas reglas le ganen a las de tablet cuando las dos aplican
+ * al mismo elemento: ambas usan `!important` con la misma especificidad, así
+ * que decide la que se declara al final. Si se le cambia el nombre a algo que
+ * ordene antes de `responsive.css`, el celular hereda las medidas de tablet.
+ *
+ * Sobre el `!important`: el layout se arma con estilos en línea desde Python
+ * (`style={...}` en cada componente) y un estilo en línea le gana a cualquier
+ * hoja externa sin importar la especificidad. Es la única forma de
+ * sobrescribirlos sin reescribir el layout entero en clases.
+ *
+ * La variable `--modo-compacto` (el puente con el JS de ECharts) NO se toca
+ * aquí: vive en `responsive.css` y ya se enciende desde 1024px, así que el
+ * celular la trae prendida por herencia del corte de tablet.
+ */
+
+/* ── Celular ──────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .lienzo-reporte {
+    padding: 14px 10px !important;
+  }
+
+  /* Una sola columna. `column` respeta el orden del DOM, así que las
+     tarjetas quedan en la misma secuencia que en escritorio. */
+  .fila-apilable {
+    flex-direction: column !important;
+  }
+
+  .fila-apilable > * {
+    min-width: 0 !important;
+    flex-basis: auto !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* IMECA Máximo: los dos años se apilan uno abajo del otro en vez de lado a
+     lado, para que la tarjeta se pueda leer sin apretarse. 2026 va arriba
+     porque es el año en curso; en el DOM 2025 va primero, así que se invierte
+     con 'column-reverse' en vez de reordenar el HTML. */
+  .fila-imeca {
+    flex-direction: column-reverse !important;
+  }
+
+  /* El acento de color pasa de borde izquierdo a borde superior: con las
+     tarjetas en columna, un borde a la izquierda ya no separa nada. El color
+     se toma de '--color-acento' (ver _card_imeca en main.py) para no
+     duplicar el azul/aqua de cada año aquí. */
+  .bloque-imeca-anio {
+    border-left: none !important;
+    border-top: 4px solid var(--color-acento) !important;
+    padding: 16px 18px !important;
+  }
+
+  /* Encabezado: logo, título y logo uno debajo del otro. Los logos se
+     encogen porque a 77px de alto se comen la primera pantalla completa. */
+  .fila-encabezado {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  .fila-encabezado img {
+    height: 52px !important;
+  }
+
+  /* El logo de SIMAJ es el protagonista visual del encabezado; en celular se
+     deja más grande que el SEMADET para que se lea y reconozca mejor. */
+  .fila-encabezado .logo-simaj {
+    height: 72px !important;
+  }
+
+  .titulo-reporte {
+    font-size: 25px !important;
+  }
+
+  .fecha-reporte {
+    font-size: 16px !important;
+  }
+
+  /* Un poco más altas que en tablet: aquí cada gráfica ocupa todo el ancho
+     (~330px) y una caja demasiado achatada se ve rara. Con 380px menos 78 de
+     márgenes internos quedan 302px de área de barras → ~30px por segmento. */
+  #echart-precontingencias,
+  #echart-contingencias-f1 {
+    height: 380px !important;
+  }
+
+  .grafica-serie-mensual {
+    height: 260px !important;
+  }
+
+  .grafica-mapa {
+    height: 340px !important;
+  }
+
+  /* Las tablas conservan sus columnas y se deslizan de lado dentro de su
+     tarjeta. El `overflow: hidden` original recortaba las columnas de la
+     derecha sin dar manera de llegar a ellas. */
+  .tabla-scroll {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Apilado, el panel de detalle del mapa lleva su separador arriba y no a
+     la izquierda, que es donde ya no hay nada. */
+  .panel-detalle-mapa {
+    border-left: none !important;
+    padding-left: 0 !important;
+    border-top: 1px solid #e6e8e9 !important;
+    padding-top: 16px !important;
+    margin-top: 4px !important;
+  }
+
+  /* Bitácoras en acordeón: ocupan mucho espacio en celular y el usuario las
+     abre solo si las quiere ver. El título es el área clickable y el ícono de
+     descarga sigue a la derecha, fuera del título, para no disparar el toggle. */
+  .bitacora-titulo {
+    position: relative !important;
+    cursor: pointer !important;
+    padding-left: 20px !important;
+    padding-right: 0 !important;
+  }
+
+  .bitacora-titulo::after {
+    content: '▶' !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 4px !important;
+    font-size: 11px !important;
+    color: #465055 !important;
+    transition: transform 0.2s ease !important;
+  }
+
+  .bitacora-abierta .bitacora-titulo::after {
+    transform: rotate(90deg) !important;
+  }
+
+  /* En escritorio no se usa; en celular el contenido empieza oculto y se
+     muestra cuando la tarjeta lleva la clase 'bitacora-abierta'. Usamos
+     'visibility' + 'position: absolute' en vez de 'display: none' para que
+     Dash/DataTable siga midiendo el ancho real del contenedor y no se
+     descomponga al abrirse. */
+  .bitacora-cerrada .bitacora-contenido {
+    visibility: hidden !important;
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 100% !important;
+    z-index: -1 !important;
+  }
+
+  .bitacora-abierta .bitacora-contenido {
+    visibility: visible !important;
+    position: static !important;
+    z-index: auto !important;
+  }
+}
