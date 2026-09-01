@@ -2515,6 +2515,20 @@ def _card_eventos_activos(eventos):
 
 # ── Bitácoras completas (tablas paginadas) ──────────────────────────────────
 
+def _siguiente_clases_bitacoras(trigger: str, clase_alertas: str, clase_episodios: str):
+    """
+    Decide el nuevo par de clases ('bitacora-abierta'/'bitacora-cerrada') a
+    partir de qué título disparó el clic. Vive separada del callback para
+    poder probarla sin un contexto de Dash: el callback solo lee
+    ``callback_context`` y le pasa el resultado a esta función.
+    """
+    if trigger == 'bitacora-alertas-header':
+        clase_alertas = 'bitacora-cerrada' if clase_alertas == 'bitacora-abierta' else 'bitacora-abierta'
+    elif trigger == 'bitacora-episodios-header':
+        clase_episodios = 'bitacora-cerrada' if clase_episodios == 'bitacora-abierta' else 'bitacora-abierta'
+    return clase_alertas, clase_episodios
+
+
 def _tabla_paginada(df: pd.DataFrame, id_tabla: str, columna_color: str = None,
                      mapa_color: dict = None, texto_claro_valores: tuple = ()):
     """
@@ -3109,11 +3123,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
     )
     def _toggle_bitacoras(n_alertas, n_episodios, clase_alertas, clase_episodios):
         trigger = callback_context.triggered[0]['prop_id'].split('.')[0] if callback_context.triggered else None
-        if trigger == 'bitacora-alertas-header':
-            clase_alertas = 'bitacora-cerrada' if clase_alertas == 'bitacora-abierta' else 'bitacora-abierta'
-        elif trigger == 'bitacora-episodios-header':
-            clase_episodios = 'bitacora-cerrada' if clase_episodios == 'bitacora-abierta' else 'bitacora-abierta'
-        return clase_alertas, clase_episodios
+        return _siguiente_clases_bitacoras(trigger, clase_alertas, clase_episodios)
 
     # Estos dos callbacks releen de Sheets cada 20s. Solo se registran si hay
     # conexión: en el servidor, que trabaja con el JSON, no hay credenciales
@@ -3187,7 +3197,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             // severidad, así que los tres se distinguen por trama.
             // idxLeyenda elige de qué año toma su tono el cuadrito de la
             // leyenda: 0 = 2025 (azul marino), 1 = 2026 (aqua).
-            function dibujar(idDiv, cfg, idxLeyenda) {
+            function dibujar(idDiv, cfg, idxLeyenda, animar) {
                 const el = document.getElementById(idDiv);
                 if (!el) { return; }
 
@@ -3381,7 +3391,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     },
                     yAxis: {type: 'value', show: false},
                     series: series,
-                    animationDuration: 600
+                    animationDuration: animar === false ? 0 : 600
                 }, true);
 
                 chart.resize();
@@ -3391,6 +3401,15 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             // la de 2026, para comparar las dos lecturas lado a lado.
             dibujar('echart-precontingencias', datos.precontingencias, 0);
             dibujar('echart-contingencias-f1', datos.contingencias_f1, 1);
+
+            // El callback del PDF necesita rehacer estas gráficas en su versión
+            // de escritorio ANTES de fotografiarlas, y 'dibujar' vive en este
+            // cierre. Se expone para que pueda llamarla y esperarla, en vez de
+            // disparar un 'resize' y adivinar cuánto tarda.
+            window.__redibujarEpisodios = function (animar) {
+                dibujar('echart-precontingencias', datos.precontingencias, 0, animar);
+                dibujar('echart-contingencias-f1', datos.contingencias_f1, 1, animar);
+            };
 
             // ECharts no se reajusta solo al cambiar el tamaño de la ventana:
             // conserva las medidas que tenía al inicializarse y el SVG se
@@ -3561,6 +3580,17 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
             const restaurar = [];
 
+            // Sobrescrituras temporales de estilo en línea, para las
+            // gráficas de episodios (ver más abajo). Se guarda [elemento,
+            // propiedad, valor original] de cada una, para devolverlas tal
+            // cual en el 'finally'.
+            const overridesEpisodios = [];
+            function forzarEstilo(el, prop, valor) {
+                if (!el) { return; }
+                overridesEpisodios.push([el, prop, el.style.getPropertyValue(prop)]);
+                el.style.setProperty(prop, valor, 'important');
+            }
+
             // El PDF tiene que salir con el layout de escritorio aunque se
             // descargue desde un celular: html2canvas fotografía el DOM vivo,
             // así que si la pantalla es angosta capturaría la versión apilada.
@@ -3574,9 +3604,88 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             // le da tiempo al navegador de rehacer el acomodo antes de que se
             // midan los contenedores con getBoundingClientRect.
             const anchoForzado = document.body.clientWidth < 1280;
+            let overlay = null;
             if (anchoForzado) {
+                // Forzar 1280px en el body NO cambia el ancho que ve un
+                // '@media query': el viewport real sigue siendo el del
+                // celular, así que el acordeón y el carrusel siguen activos
+                // en la pantalla real mientras se prepara la foto. Sin este
+                // overlay, el usuario ve la pantalla desbordarse y las
+                // tarjetas armarse a medias durante ese instante.
+                overlay = document.createElement('div');
+                overlay.style.position = 'fixed';
+                overlay.style.inset = '0';
+                overlay.style.zIndex = '999999';
+                overlay.style.backgroundColor = '#ffffff';
+                overlay.style.display = 'flex';
+                overlay.style.alignItems = 'center';
+                overlay.style.justifyContent = 'center';
+                overlay.style.fontFamily = 'Inter, Segoe UI, sans-serif';
+                overlay.style.fontSize = '16px';
+                overlay.style.color = '#465055';
+                overlay.textContent = 'Generando PDF...';
+                document.body.appendChild(overlay);
+
                 document.body.classList.add('capturando-pdf');
+
+                // La fila de la tabla + gráficas de episodios usa la misma
+                // clase 'fila-apilable' que el resto de filas que sí se
+                // apilan en celular. El resto del PDF sale bien porque
+                // html2canvas vuelve a renderizar esas partes DENTRO de una
+                // ventana virtual de 1280px (vía 'windowWidth'), donde el
+                // '@media' de celular ya no aplica. Pero estas dos gráficas
+                // NO pasan por esa ventana virtual: se convierten a imagen
+                // ANTES, midiendo el DOM real — y el DOM real sigue viendo un
+                // viewport angosto de verdad (forzar min-width en el body no
+                // cambia lo que un '@media query' considera "la pantalla").
+                // Ahí sigue activo '.fila-apilable { flex-direction: column }'
+                // + '.fila-apilable > * { width: 100% }', así que la gráfica
+                // que se mide termina con el ancho de TODA la fila en vez del
+                // que le toca junto a la tabla. Se restituyen a mano, con
+                // 'important', los mismos valores que trae cada una inline
+                // en escritorio (ver el html.Div de episodios más arriba).
+                const precontDiv = document.getElementById('echart-precontingencias');
+                const contF1Div = document.getElementById('echart-contingencias-f1');
+                const parejaGraficas = precontDiv && precontDiv.parentElement;
+                const filaEpisodios = parejaGraficas && parejaGraficas.parentElement;
+                const tablaEpisodios = filaEpisodios && Array.from(filaEpisodios.children)
+                    .find(function (hijo) { return hijo !== parejaGraficas; });
+
+                if (filaEpisodios) { forzarEstilo(filaEpisodios, 'flex-direction', 'row'); }
+                if (parejaGraficas) {
+                    forzarEstilo(parejaGraficas, 'flex-direction', 'row');
+                    forzarEstilo(parejaGraficas, 'flex', '1 1 400px');
+                    forzarEstilo(parejaGraficas, 'min-width', '380px');
+                    forzarEstilo(parejaGraficas, 'width', 'auto');
+                }
+                if (tablaEpisodios) {
+                    forzarEstilo(tablaEpisodios, 'flex', '1 1 420px');
+                    forzarEstilo(tablaEpisodios, 'min-width', '340px');
+                    forzarEstilo(tablaEpisodios, 'width', 'auto');
+                }
+                [precontDiv, contF1Div].forEach(function (el) {
+                    if (!el) { return; }
+                    forzarEstilo(el, 'flex', '1');
+                    forzarEstilo(el, 'min-width', '190px');
+                    forzarEstilo(el, 'width', 'auto');
+                    // Mismo problema que el ancho, y misma solución: el alto
+                    // de 450px depende de que una regla externa le gane por
+                    // especificidad a la del '@media' de celular, y esa
+                    // carrera no siempre se resuelve antes de que
+                    // 'chart.resize()' lea el tamaño del contenedor.
+                    forzarEstilo(el, 'height', '""" + ALTO_GRAFICA_EPISODIOS + """');
+                });
+
+                // El 'resize' lo escuchan Plotly y el cintillo de la serie
+                // mensual, que se reacomodan solos con él.
                 window.dispatchEvent(new Event('resize'));
+                // Las de ECharts NO se dejan al listener: se rehacen aquí,
+                // explícitamente y sin animación. Confiar en el evento
+                // significaba depender de que el redibujo terminara dentro de la
+                // espera de abajo, y la animación dura 600ms — más que ella.
+                if (typeof window.__redibujarEpisodios === 'function') {
+                    window.__redibujarEpisodios(false);
+                }
                 await new Promise(res => setTimeout(res, 450));
             }
 
@@ -3590,16 +3699,47 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             //    del mapa está "contaminado" por los iconos que carga desde
             //    unpkg.com sin permiso de origen cruzado; esa lectura falla
             //    y arruina la captura de toda esa zona.
-            function sustituir(div, url) {
+            function sustituir(div, url, medidaExacta) {
                 return new Promise(function (resolve) {
                     const img = document.createElement('img');
-                    // Ancho relativo al contenedor y alto automático: con el
-                    // ancho en píxeles del nodo de Plotly la imagen se
-                    // desbordaba unos pixeles y se encimaba con el panel de
-                    // al lado. 'height: auto' conserva la proporción.
-                    img.style.width = '100%';
-                    img.style.maxWidth = '100%';
-                    img.style.height = 'auto';
+
+                    if (medidaExacta) {
+                        // Medidas exactas en píxeles, tomadas del div justo
+                        // antes de sacarlo del DOM. Es la única forma de
+                        // garantizar que la imagen ocupe el mismo espacio que
+                        // ocupaba la gráfica: dejarlo en manos de 'width:100%'
+                        // + 'height:auto' significa confiar en que el ancho
+                        // del contenedor no cambie entre que se mide el
+                        // tamaño real (con la gráfica) y que se inserta la
+                        // imagen (ya sin ella) — y en la práctica el 'flex'
+                        // de alrededor sí se reacomoda entre esos dos
+                        // momentos, lo que dejaba la imagen más angosta y,
+                        // por 'height:auto', también más baja de lo debido.
+                        img.style.width = medidaExacta.ancho + 'px';
+                        img.style.height = medidaExacta.alto + 'px';
+                        img.style.maxWidth = 'none';
+                        img.style.flex = 'none';
+                    } else {
+                        // Ancho relativo al contenedor y alto automático: con el
+                        // ancho en píxeles del nodo de Plotly la imagen se
+                        // desbordaba unos pixeles y se encimaba con el panel de
+                        // al lado. 'height: auto' conserva la proporción.
+                        img.style.width = '100%';
+                        img.style.maxWidth = '100%';
+                        img.style.height = 'auto';
+
+                        // El div que se retira puede ser un elemento flex: si
+                        // la imagen no copia su 'flex', dos imágenes a
+                        // width:100% piden cada una el ancho completo y se
+                        // aprietan entre sí.
+                        const estilo = getComputedStyle(div);
+                        if (estilo.display !== 'none' && div.parentNode
+                                && getComputedStyle(div.parentNode).display === 'flex') {
+                            img.style.flex = estilo.flex;
+                            img.style.minWidth = '0';
+                            img.style.alignSelf = 'flex-start';
+                        }
+                    }
                     img.style.display = 'block';
                     img.style.boxSizing = 'border-box';
                     img.onload = function () { resolve(true); };
@@ -3684,9 +3824,22 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 const inst = echarts.getInstanceByDom(div);
                 if (!inst) { continue; }
                 try {
+                    // Se remide justo antes de fotografiar. Hace falta porque
+                    // la sustitución de la vuelta anterior saca un div del
+                    // flujo y cambia el ancho disponible del que sigue, y
+                    // porque ECharts no remide solo: el PNG saldría con las
+                    // medidas viejas y la imagen se vería estirada.
+                    inst.resize();
+                    await new Promise(res => requestAnimationFrame(() =>
+                                              requestAnimationFrame(res)));
+                    // Medida real del div EN ESTE MOMENTO, con la gráfica
+                    // todavía puesta: es la que se le copia a la imagen
+                    // sustituta, en vez de dejarla calcular su propio tamaño
+                    // con 'width:100%' + 'height:auto' (ver 'sustituir').
+                    const caja = div.getBoundingClientRect();
                     await sustituir(div, inst.getDataURL({
                         type: 'png', pixelRatio: 2, backgroundColor: '#ffffff'
-                    }));
+                    }), {ancho: caja.width, alto: caja.height});
                 } catch (e) { console.warn('ECharts ' + id, e); }
             }
 
@@ -3752,9 +3905,25 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 // sin él se quedan dibujadas a 1280px dentro de un contenedor
                 // angosto.
                 if (anchoForzado) {
+                    // Todo lo forzado a mano (fila, anchos, alto) se quita
+                    // ANTES del 'resize' de abajo, para que ese evento
+                    // redibuje las gráficas ya con las medidas reales de
+                    // celular en vez de las de escritorio.
+                    overridesEpisodios.forEach(function (par) {
+                        const [el, prop, valorOriginal] = par;
+                        if (valorOriginal) {
+                            el.style.setProperty(prop, valorOriginal);
+                        } else {
+                            el.style.removeProperty(prop);
+                        }
+                    });
                     document.body.classList.remove('capturando-pdf');
                     window.dispatchEvent(new Event('resize'));
+                    if (typeof window.__redibujarEpisodios === 'function') {
+                        window.__redibujarEpisodios(true);
+                    }
                 }
+                if (overlay && overlay.parentNode) { overlay.remove(); }
             }
 
             return window.dash_clientside.no_update;
