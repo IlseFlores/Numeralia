@@ -1886,8 +1886,12 @@ def _fig_serie_buena_mensual(df_resumen: pd.DataFrame):
 
 def _card_serie_mensual_2025(df_resumen: pd.DataFrame):
     return html.Div([
-        html.Div('Acumulado Mensual de Días con Buena o Aceptable Calidad del Aire 2025-2026', style={
-            'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '22px', 'marginBottom': '14px'}),
+        html.Div([
+            'Acumulado Mensual de Días con Buena o Aceptable Calidad del Aire ',
+            html.Span('2025', style={'color': COLOR_2025, 'fontWeight': '800'}),
+            '-',
+            html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
+        ], style={'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div('Acumulado mensual de días en los que la calidad del aire fue buena o aceptable según '
                  'el Índice Aire y Salud (NOM-172-SEMARNAT-2023), considerando el valor más alto '
                  'registrado por el SIMAJ.',
@@ -2596,8 +2600,10 @@ def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
 
     return html.Div([
         html.Div([
-            html.Div('Registro de Alertas y Emergencias Atmosféricas 2026',
-                     id='bitacora-alertas-header',
+            html.Div([
+                'Registro de Alertas y Emergencias Atmosféricas ',
+                html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
+            ], id='bitacora-alertas-header',
                      className='bitacora-titulo',
                      n_clicks=0,
                      style={'flex': '1', 'color': COLOR_GRIS, 'fontWeight': '700',
@@ -2643,8 +2649,10 @@ def _card_bitacora_episodios(df_episodios_2026_raw: pd.DataFrame):
 
     return html.Div([
         html.Div([
-            html.Div('Registro de Episodios de Mala calidad del aire 2026',
-                     id='bitacora-episodios-header',
+            html.Div([
+                'Registro de Episodios de Mala calidad del aire ',
+                html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
+            ], id='bitacora-episodios-header',
                      className='bitacora-titulo',
                      n_clicks=0,
                      style={'flex': '1', 'color': COLOR_GRIS, 'fontWeight': '700',
@@ -2789,8 +2797,12 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
               'alignItems': 'stretch', 'marginBottom': '20px'})
 
     episodios_card = html.Div([
-        html.Div('Comparativo de Episodios de mala calidad del Aire 2025-2026', style={
-            'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
+        html.Div([
+            'Comparativo de Episodios de mala calidad del Aire ',
+            html.Span('2025', style={'color': COLOR_2025, 'fontWeight': '800'}),
+            '-',
+            html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
+        ], style={'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div('Episodios activados a partir de las mediciones registradas en las estaciones del SIMAJ.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
@@ -2823,8 +2835,12 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
     ], style={**CARD_STYLE, 'marginBottom': '20px'})
 
     alertas_card = html.Div([
-        html.Div('Comparativo de Alertas y Emergencias 2025-2026', style={
-            'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
+        html.Div([
+            'Comparativo de Alertas y Emergencias ',
+            html.Span('2025', style={'color': COLOR_2025, 'fontWeight': '800'}),
+            '-',
+            html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
+        ], style={'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div('Episodios derivados de eventos extraordinarios, como incendios u otras fuentes '
                   'que pueden afectar la calidad del aire.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
@@ -2861,7 +2877,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             ' vs ',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
             ' por estación de monitoreo',
-        ], style={'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '22px', 'marginBottom': '14px'}),
+        ], style={'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div([
             html.Div([
                 dcc.Graph(id='mapa-grafico', figure=fig_mapa,
