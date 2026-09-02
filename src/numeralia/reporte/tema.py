@@ -161,8 +161,8 @@ ESCALA_EPISODIOS_ANIO_ACTUAL = escala_serie(COLOR_ANIO_ACTUAL, luminancia_minima
 SEVERIDAD_TINTES = {
     1: '#FFB300',   # Precontingencia atmosférica
     2: '#EF6C00',   # Contingencia atmosférica Fase I
-    3: '#3d0082',   # Contingencia atmosférica Fase II
-    4: '##3d0082',   # Contingencia atmosférica Fase III
+    3: '#FC3508',   # Contingencia atmosférica Fase II
+    4: '#3d0082',   # Contingencia atmosférica Fase III
 }
 
 # ── Plotly ──────────────────────────────────────────────────────────────────

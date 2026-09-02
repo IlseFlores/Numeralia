@@ -1885,6 +1885,11 @@ def _fig_serie_buena_mensual(df_resumen: pd.DataFrame):
 
 
 def _card_serie_mensual_2025(df_resumen: pd.DataFrame):
+    hoy = datetime.now()
+    corte = hoy.replace(day=1) - timedelta(days=1)
+    mes_actual = _MESES_NOMBRE[corte.month]
+    año_actual = corte.year
+    dia_corte = corte.day
     return html.Div([
         html.Div([
             'Acumulado Mensual de Días con Buena o Aceptable Calidad del Aire ',
@@ -1892,10 +1897,13 @@ def _card_serie_mensual_2025(df_resumen: pd.DataFrame):
             '-',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
         ], style={'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
-        html.Div('Acumulado mensual de días en los que la calidad del aire fue buena o aceptable según '
-                 'el Índice Aire y Salud (NOM-172-SEMARNAT-2023), considerando el valor más alto '
-                 'registrado por el SIMAJ.',
-                 style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
+        html.Div([
+            f'Acumulado mensual de días en los que la calidad del aire fue buena o aceptable según '
+            f'el Índice Aire y Salud (NOM-172-SEMARNAT-2023), considerando el valor más alto '
+            f'registrado por el SIMAJ. Corte al {dia_corte} de {mes_actual} de {año_actual}. Consulta la información histórica en ',
+            html.A('mide.jalisco.gob.mx', href='https://mide.jalisco.gob.mx', target='_blank',
+                   style={'color': COLOR_2026, 'textDecoration': 'underline'}),
+        ], style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         # La figura no se le pasa directo a la gráfica: vive en este Store y
         # un callback clientside la adapta al ancho de la pantalla antes de
         # dibujarla (en celular le quita el cintillo de pastillas, que a ese
@@ -2092,7 +2100,7 @@ def _kpi_activaciones_simaj(df_episodios: pd.DataFrame, col_2026: str):
     )
 
     return html.Div([
-        html.Div('Activaciones por SIMAJ', style=_KPI_TITULO),
+        html.Div('Episodios Activados', style=_KPI_TITULO),
         html.Div(html.Div([
             html.Div(_kpi_dato('Precontingencias', precont, _SEVERIDAD_TINTES[1]),
                      style={'flex': '1', 'minWidth': '0'}),
@@ -2108,7 +2116,7 @@ def _kpi_activaciones_simaj(df_episodios: pd.DataFrame, col_2026: str):
             ], style={'flex': '1', 'minWidth': '0'}),
         ], style={'display': 'flex', 'gap': '14px', 'alignItems': 'center',
                   'height': '100%'}), style=_KPI_CUERPO),
-        _kpi_total('Total de episodios por simaj', total),
+        _kpi_total('Total de episodios Activados', total),
     ], style=_KPI_CONTENEDOR)
 
 
@@ -2130,7 +2138,7 @@ def _kpi_alertas_emergencias(df_alertas: pd.DataFrame, col_2026: str):
     total = _valor('total')
 
     return html.Div([
-        html.Div('Activaciones por Eventos Extraordinarios', style=_KPI_TITULO),
+        html.Div('Eventos activados', style=_KPI_TITULO),
         html.Div(html.Div([
             html.Div(_kpi_dato('Alertas', alertas, '#FCB308'),
                      style={'flex': '1', 'minWidth': '0'}),
@@ -2140,7 +2148,7 @@ def _kpi_alertas_emergencias(df_alertas: pd.DataFrame, col_2026: str):
                      style={'flex': '1', 'minWidth': '0'}),
         ], style={'display': 'flex', 'gap': '14px', 'alignItems': 'center',
                   'height': '100%'}), style=_KPI_CUERPO),
-        _kpi_total('Total de Eventos Extraordinarios', total),
+        _kpi_total('Total de Eventos Activados', total),
     ], style=_KPI_CONTENEDOR)
 
 
@@ -2517,7 +2525,7 @@ def _card_eventos_activos(eventos):
         cuerpo = html.Div(fichas)
 
     return html.Div([
-        html.Div('Episodios activos', style=_KPI_TITULO),
+        html.Div('Episodios o Eventos Activos + Contingencias y Precontingencias', style=_KPI_TITULO),
         html.Div(cuerpo, style={**_KPI_CUERPO, 'display': 'flex',
                                  'flexDirection': 'column', 'justifyContent': 'center'}),
     ], style=_KPI_CONTENEDOR)
@@ -2845,7 +2853,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         _tabla_alertas(df_alertas),
     ], style={**CARD_STYLE, 'flex': '1', 'minWidth': '320px'})
 
-    imeca_card = html.Div([_card_imeca(df_imeca)], style={**CARD_STYLE, 'flex': '1', 'minWidth': '320px'})
+    imeca_card = html.Div([_card_imeca(df_imeca)], style={**CARD_STYLE, 'marginBottom': '20px'})
 
     acumulado_idx = acumulado.set_index('Estación')
 
@@ -3026,7 +3034,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             _encabezado_reporte(),
             kpis,
             episodios_card,
-            html.Div([alertas_card, imeca_card], className='fila-apilable',
+            html.Div([alertas_card], className='fila-apilable',
                      style={'display': 'flex', 'gap': '20px', 'flexWrap': 'wrap'}),
         ], id='pdf-pagina-1'),
 
@@ -3036,6 +3044,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         ], id='pdf-pagina-2'),
 
         html.Div([
+            imeca_card,
             bitacora_episodios_card,
             bitacora_alertas_card,
         ], id='pdf-pagina-3'),
