@@ -44,6 +44,23 @@
   }
 }
 
+/* Límite de ancho en escritorio: evita que el dashboard se extienda por
+   toda una pantalla ancha, dejando un margen visual en los costados.
+   Durante la captura del PDF se quita para aprovechar los 1280px. */
+@media (min-width: 1025px) {
+  .lienzo-reporte {
+    max-width: 1300px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+}
+
+body.capturando-pdf .lienzo-reporte {
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
 /* Durante la captura del PDF el layout se ensancha a 1280px, así que las
    gráficas deben volver a su versión de escritorio aunque la ventana siga
    siendo la de un celular. La variable se lee del body justamente para que
