@@ -161,7 +161,7 @@ ESCALA_EPISODIOS_ANIO_ACTUAL = escala_serie(COLOR_ANIO_ACTUAL, luminancia_minima
 SEVERIDAD_TINTES = {
     1: '#FFB300',   # Precontingencia atmosférica
     2: '#EF6C00',   # Contingencia atmosférica Fase I
-    3: '#DC143C',   # Contingencia atmosférica Fase II
+    3: '#e30202',   # Contingencia atmosférica Fase II
     4: '#4B0082',   # Contingencia atmosférica Fase III
 }
 

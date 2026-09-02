@@ -1642,7 +1642,7 @@ def _encabezado_reporte():
             _celda_logo(src_simaj, 'flex-start', 'logo-simaj'),
             html.Div([
                 html.H1('Reporte Diario de Calidad del Aire', className='titulo-reporte', style={
-                    'margin': '0', 'fontSize': '37px', 'fontWeight': '600',
+                    'margin': '0', 'fontSize': '32px', 'fontWeight': '600',
                     'color': COLOR_GRIS, 'textAlign': 'center', 'lineHeight': '1.15',
                 }),
                 html.Div(_fecha_encabezado(), className='fecha-reporte', style={
@@ -2588,11 +2588,9 @@ def _ordenar_por_no_desc(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
-    """Bitácora completa de 'NUEVO alertas 2026' (sin Zonas de Influencia ni Fecha termino)."""
+    """Bitácora de 'NUEVO alertas 2026' (columnas A a K menos D, E, F e I)."""
     cols_a_k = list(df_alertas_2026_raw.columns)[0:11]
-    col_zonas = _buscar_columna(cols_a_k, 'zonas de influencia')
-    col_termino = _buscar_columna(cols_a_k, 'termino', 'fin')
-    cols_mostrar = [c for c in cols_a_k if c not in (col_zonas, col_termino)]
+    cols_mostrar = [c for i, c in enumerate(cols_a_k) if i not in (3, 4, 5, 8)]
     df = _ordenar_por_no_desc(df_alertas_2026_raw[cols_mostrar])
 
     col_fase = _buscar_columna(cols_mostrar, 'fase decretada', 'fase')
@@ -2881,7 +2879,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         html.Div([
             html.Div([
                 dcc.Graph(id='mapa-grafico', figure=fig_mapa,
-                          className='grafica-mapa', style={'height': '520px'},
+                          className='grafica-mapa', style={'height': '600px'},
                           config={'responsive': True}),
                 # Oculta en pantalla; el callback del PDF la muestra en lugar
                 # del mapa interactivo justo antes de capturar.
@@ -3038,8 +3036,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         ], id='pdf-pagina-2'),
 
         html.Div([
-            bitacora_alertas_card,
             bitacora_episodios_card,
+            bitacora_alertas_card,
         ], id='pdf-pagina-3'),
     ], className='lienzo-reporte', style={
         'backgroundColor': COLOR_BG,
