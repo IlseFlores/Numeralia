@@ -1660,7 +1660,7 @@ def _encabezado_reporte():
         html.P(
             'El Reporte Diario de Calidad del Aire presenta información acumulada '
             'al día señalado en el encabezado. Permite conocer cómo se ha comportado '
-            'la calidad del aire registrada por el SIMAJ.',
+            'la calidad del aire.',
             style={'color': COLOR_GRIS_MUTE, 'fontSize': '17px', 'lineHeight': '1.6',
                    'textAlign': 'center', 'maxWidth': '1000px', 'margin': '0 auto'},
         ),
@@ -2163,45 +2163,114 @@ _EPISODIOS_ENCABEZADOS = {
 
 
 def _tabla_episodios(df: pd.DataFrame):
+    """
+    Tabla comparativa de episodios con acordeón:
+    - Los encabezados de grupo (Precontingencias, Fase I…) son siempre visibles.
+    - Las sub-filas (declaradas por Ozono/PM10/PM2.5) empiezan ocultas y se
+      despliegan al hacer clic en el encabezado de su grupo.
+    - Los grupos que no tienen sub-filas en los datos (Fase II, III) se
+      muestran como filas normales sin flecha ni toggle.
+    El gráfico de barras queda a la derecha con altura fija ALTO_GRAFICA_EPISODIOS.
+    """
     col_label, col_2025, col_2026 = df.columns[0], df.columns[1], df.columns[2]
 
-    filas = []
+    # ── Primera pasada: agrupar filas por severidad ───────────────────────────
+    grupos = []          # [{'sev': int, 'row': Series, 'subs': [Series, …]}, …]
+    fila_totales = None
+    grupo_actual = None
+
     for _, row in df.iterrows():
         etiqueta = str(row[col_label]).strip()
         es_total = etiqueta.lower().startswith('episodios totales')
-        severidad = _EPISODIOS_ENCABEZADOS.get(etiqueta, 0)
-        es_sub = (not es_total) and severidad == 0
+        sev = _EPISODIOS_ENCABEZADOS.get(etiqueta, 0)
 
         if es_total:
-            estilo = {'backgroundColor': COLOR_GRIS, 'color': '#ffffff', 'fontWeight': '800'}
-        elif severidad:
-            texto_claro = severidad >= 2
-            estilo = {'backgroundColor': _SEVERIDAD_TINTES[severidad],
-                      'color': '#ffffff' if texto_claro else COLOR_GRIS, 'fontWeight': '700'}
-        else:
-            estilo = {'backgroundColor': '#ffffff' if es_sub else COLOR_GRIS_50, 'color': COLOR_GRIS}
+            fila_totales = row
+        elif sev:
+            grupo_actual = {'sev': sev, 'row': row, 'subs': []}
+            grupos.append(grupo_actual)
+        elif grupo_actual is not None:
+            grupo_actual['subs'].append(row)
 
-        filas.append(html.Tr([
-            html.Td(etiqueta, style={
-                **estilo, 'padding': '8px 14px', 'textAlign': 'left',
-                'paddingLeft': '34px' if es_sub else '14px',
-                'fontSize': '15px' if es_sub else '14px',
-                'fontWeight': estilo.get('fontWeight', '400') if not es_sub else '400',
-            }),
-            html.Td(row[col_2025], style={**estilo, 'padding': '8px 14px', 'textAlign': 'center'}),
-            html.Td(row[col_2026], style={**estilo, 'padding': '8px 14px', 'textAlign': 'center'}),
-        ]))
+    # ── Helpers de estilo ─────────────────────────────────────────────────────
+    def _num(base): return {**base, 'padding': '8px 14px', 'textAlign': 'center'}
+    def _lbl(base, indent=False): return {
+        **base, 'padding': '8px 14px', 'textAlign': 'left',
+        'paddingLeft': '34px' if indent else '14px',
+        'fontSize': '15px' if indent else '14px',
+        'fontWeight': base.get('fontWeight', '400') if indent else base.get('fontWeight', '700'),
+    }
 
-    encabezado = html.Tr([
+    # ── Segunda pasada: construir tbodies ─────────────────────────────────────
+    tbodies = []
+    for g in grupos:
+        sev = g['sev']
+        row = g['row']
+        etiqueta = str(row[col_label]).strip()
+        texto_claro = sev >= 2
+        base = {
+            'backgroundColor': _SEVERIDAD_TINTES[sev],
+            'color': '#ffffff' if texto_claro else COLOR_GRIS,
+            'fontWeight': '700',
+        }
+        tiene_subs = bool(g['subs'])
+
+        # Celda de etiqueta con flecha opcional
+        contenido_lbl = ([
+            html.Span('▶', id=f'arrow-episodios-{sev}',
+                      style={'marginRight': '8px', 'fontSize': '10px',
+                             'display': 'inline-block'}),
+        ] if tiene_subs else []) + [etiqueta]
+
+        celda_lbl = html.Td(
+            contenido_lbl,
+            style={**_lbl(base), 'cursor': 'pointer' if tiene_subs else 'default'},
+        )
+
+        # Fila encabezado: clickeable solo si tiene sub-filas
+        kwargs_hdr = dict(id=f'toggle-episodios-{sev}', n_clicks=0) if tiene_subs else {}
+        header_tr = html.Tr(
+            [celda_lbl,
+             html.Td(row[col_2025], style=_num(base)),
+             html.Td(row[col_2026], style=_num(base))],
+            **kwargs_hdr,
+        )
+        tbodies.append(html.Tbody([header_tr]))
+
+        # Sub-filas en un tbody aparte, inicialmente oculto
+        if tiene_subs:
+            sub_base = {'backgroundColor': '#ffffff', 'color': COLOR_GRIS}
+            sub_trs = [
+                html.Tr([
+                    html.Td(str(sr[col_label]).strip(), style=_lbl(sub_base, indent=True)),
+                    html.Td(sr[col_2025], style=_num(sub_base)),
+                    html.Td(sr[col_2026], style=_num(sub_base)),
+                ])
+                for sr in g['subs']
+            ]
+            tbodies.append(html.Tbody(sub_trs,
+                                      id=f'sub-episodios-{sev}',
+                                      style={'display': 'none'}))
+
+    # Fila de totales
+    if fila_totales is not None:
+        base_tot = {'backgroundColor': COLOR_GRIS, 'color': '#ffffff', 'fontWeight': '800'}
+        tbodies.append(html.Tbody([html.Tr([
+            html.Td(str(fila_totales[col_label]).strip(), style=_lbl(base_tot)),
+            html.Td(fila_totales[col_2025], style=_num(base_tot)),
+            html.Td(fila_totales[col_2026], style=_num(base_tot)),
+        ])]))
+
+    encabezado = html.Thead(html.Tr([
         html.Th('Episodios activados', style={'backgroundColor': COLOR_GRIS, 'color': '#fff',
                                                'padding': '10px 14px', 'textAlign': 'left'}),
         html.Th('2025', style={'backgroundColor': COLOR_2025, 'color': '#fff', 'padding': '10px 14px'}),
         html.Th('2026', style={'backgroundColor': COLOR_2026, 'color': '#fff', 'padding': '10px 14px'}),
-    ])
+    ]))
 
     return html.Div(
-        html.Table([html.Thead(encabezado), html.Tbody(filas)],
-                    style={'width': '100%', 'borderCollapse': 'collapse'}),
+        html.Table([encabezado] + tbodies,
+                   style={'width': '100%', 'borderCollapse': 'collapse'}),
         className='tabla-scroll',
         style={'borderRadius': '10px', 'overflow': 'hidden', 'border': f'1px solid {COLOR_GRIS_100}'}
     )
@@ -2458,7 +2527,7 @@ def _eventos_activos_2026(df_alertas_2026: pd.DataFrame):
     Un evento se considera ACTIVO si las columnas A (No) a H (Inicio) tienen
     dato (la fila es real, no un renglón vacío de la plantilla) y la columna
     'Fecha termino' está vacía. En cuanto 'Fecha termino' tenga dato, el
-    evento desaparece de la ficha.
+    evento desaparece de la ficha. Devuelve lista de dicts con tipo='alerta'.
     """
     cols = list(df_alertas_2026.columns)
     if len(cols) < 8:
@@ -2472,13 +2541,17 @@ def _eventos_activos_2026(df_alertas_2026: pd.DataFrame):
 
     col_municipio = _buscar_columna(cols, 'municipio')
     col_incidente = _buscar_columna(cols, 'incidente')
+    col_fase = _buscar_columna(cols, 'fase decretada', 'fase')
 
     activos = []
     for _, row in df_alertas_2026.iterrows():
         fila_llena = all(str(row[c]).strip() != '' for c in cols_a_h)
         termino_vacio = str(row[col_termino]).strip() == ''
         if fila_llena and termino_vacio:
+            fase = str(row[col_fase]).strip() if col_fase else ''
             activos.append({
+                'tipo': 'alerta',
+                'fase': fase,
                 'inicio': str(row[col_inicio]).strip(),
                 'municipio': str(row[col_municipio]).strip() if col_municipio else '',
                 'incidente': str(row[col_incidente]).strip() if col_incidente else '',
@@ -2486,13 +2559,89 @@ def _eventos_activos_2026(df_alertas_2026: pd.DataFrame):
     return activos
 
 
-def _card_eventos_activos(eventos):
+# Mapa de nombre de evento (hoja episodios 2026) a nivel de severidad
+_EVENTO_SEVERIDAD = {
+    'PreContingencia Atmosférica':        1,
+    'Contingencia Atmosférica Fase I':    2,
+    'Contingencia Atmosférica Fase II':   3,
+    'Contingencia Atmosférica Fase III':  4,
+}
+
+
+def _episodios_activos_raw(df_episodios_2026: pd.DataFrame):
     """
-    Ficha de episodios activos, como tercera tarjeta KPI de la fila superior.
-    Comparte el marco y el título con las otras dos para que las tres se vean
-    como una sola familia.
+    Un episodio en 'Nuevo episodios 2026' se considera ACTIVO si:
+      - La primera columna (No) tiene dato (fila real, no plantilla vacía).
+      - La columna 'Estado' existe y contiene 'activo' (sin importar mayúsculas),
+        O bien no hay columna Estado pero la columna 'Fin' está vacía.
+    
+    Se limita la búsqueda de 'Fin' a columnas hasta 'Estado' para evitar
+    coincidencias con otros nombres que contengan 'fin' (ej. 'Definición').
+    Devuelve lista de dicts con tipo='episodio' y severidad.
     """
-    if not eventos:
+    cols = list(df_episodios_2026.columns)
+    if not cols:
+        return []
+
+    col_no = cols[0]
+    col_evento = _buscar_columna(cols, 'evento')
+    col_municipio = _buscar_columna(cols, 'municipio')
+    col_contaminante = _buscar_columna(cols, 'contaminante')
+    col_estacion = _buscar_columna(cols, 'estacion', 'estación')
+    col_estado = _buscar_columna(cols, 'estado')
+
+    # Limitar búsqueda de 'Fin' al rango hasta Estado (como la bitácora)
+    if col_estado:
+        idx_estado = cols.index(col_estado)
+        cols_hasta_estado = cols[0:idx_estado + 1]
+    else:
+        cols_hasta_estado = cols
+    col_fin = _buscar_columna(cols_hasta_estado, 'fin')
+
+    # Sin ninguna señal de terminación no podemos determinar si está activo
+    if col_fin is None and col_estado is None:
+        return []
+
+    activos = []
+    for _, row in df_episodios_2026.iterrows():
+        # Fila vacía de plantilla: la columna No está vacía
+        if str(row[col_no]).strip() == '':
+            continue
+
+        # Criterio de actividad:
+        # 1) Si hay columna Estado → 'activo' en su valor
+        # 2) Si no, caer en Fin vacío
+        if col_estado:
+            val_estado = _sin_acentos(str(row[col_estado])).strip().lower()
+            es_activo = 'activo' in val_estado
+        else:
+            es_activo = str(row[col_fin]).strip() == ''
+
+        if es_activo:
+            evento_texto = str(row[col_evento]).strip() if col_evento else ''
+            severidad = _EVENTO_SEVERIDAD.get(evento_texto, 0)
+            activos.append({
+                'tipo': 'episodio',
+                'evento': evento_texto,
+                'severidad': severidad,
+                'municipio': str(row[col_municipio]).strip() if col_municipio else '',
+                'contaminante': str(row[col_contaminante]).strip() if col_contaminante else '',
+                'estacion': str(row[col_estacion]).strip() if col_estacion else '',
+            })
+    return activos
+
+
+def _card_eventos_activos(eventos_alertas, eventos_episodios=None):
+    """
+    Ficha de episodios/alertas activos, como tercera tarjeta KPI.
+    - eventos_alertas: lista de dicts de _eventos_activos_2026() (hoja alertas).
+    - eventos_episodios: lista de dicts de _episodios_activos_raw() (hoja episodios).
+    Ambas listas se muestran juntas. Las alertas usan color amarillo/rojo según
+    la Fase Decretada; los episodios usan SEVERIDAD_TINTES según su nivel.
+    """
+    todos = list(eventos_alertas or []) + list(eventos_episodios or [])
+
+    if not todos:
         cuerpo = html.Div(
             'Sin episodios activos por el momento.',
             style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'textAlign': 'center',
@@ -2500,22 +2649,48 @@ def _card_eventos_activos(eventos):
         )
     else:
         fichas = []
-        for i, ev in enumerate(eventos):
-            detalle = f"en el municipio de {ev['municipio']}" if ev['municipio'] else ''
-            # El último no lleva línea inferior, para no dejar una rayita suelta.
-            es_ultimo = i == len(eventos) - 1
+        for i, ev in enumerate(todos):
+            es_ultimo = i == len(todos) - 1
+            tipo = ev.get('tipo', 'alerta')
+
+            if tipo == 'alerta':
+                fase = ev.get('fase', '').lower()
+                color_badge = '#FC3508' if 'emergencia' in fase else '#FCB308'
+                texto_badge = ev.get('fase') or 'Alerta'
+                texto_claro_badge = 'emergencia' in fase
+                descripcion = ev.get('incidente', '')
+                detalle = f"en el municipio de {ev['municipio']}" if ev.get('municipio') else ''
+                subtexto = None
+            else:
+                sev = ev.get('severidad', 0)
+                color_badge = _SEVERIDAD_TINTES.get(sev, '#FCB308')
+                texto_badge = ev.get('evento') or 'Episodio activo'
+                texto_claro_badge = sev >= 2
+                descripcion = None
+                detalle = f"en el municipio de {ev['municipio']}" if ev.get('municipio') else ''
+                contaminante = ev.get('contaminante', '') or None
+                estacion = ev.get('estacion', '') or None
+
             fichas.append(html.Div([
-                html.Div('Emergencia atmosférica', style={
-                    'backgroundColor': '#DC143C', 'color': '#ffffff', 'display': 'inline-block',
+                html.Div(texto_badge, style={
+                    'backgroundColor': color_badge,
+                    'color': '#ffffff' if texto_claro_badge else COLOR_GRIS,
+                    'display': 'inline-block',
                     'padding': '4px 12px', 'borderRadius': '6px', 'fontWeight': '700',
-                    'fontSize': '15px', 'marginBottom': '6px',
+                    'fontSize': '13px', 'marginBottom': '6px',
                 }),
-                html.Div(ev['incidente'], style={
+                html.Div(descripcion, style={
                     'color': COLOR_GRIS, 'fontSize': '15px', 'fontWeight': '600',
-                }) if ev['incidente'] else None,
+                }) if tipo == 'alerta' and descripcion else None,
                 html.Div(detalle, style={
-                    'color': COLOR_GRIS_MUTE, 'fontSize': '15px',
+                    'color': COLOR_GRIS_MUTE, 'fontSize': '14px',
                 }) if detalle else None,
+                html.Div(f'Estación: {estacion}', style={
+                    'color': COLOR_GRIS_MUTE, 'fontSize': '14px',
+                }) if tipo == 'episodio' and estacion else None,
+                html.Div(f'Contaminante: {contaminante}', style={
+                    'color': COLOR_GRIS_MUTE, 'fontSize': '14px',
+                }) if tipo == 'episodio' and contaminante else None,
             ], style={
                 'marginBottom': '0' if es_ultimo else '10px',
                 'paddingBottom': '0' if es_ultimo else '10px',
@@ -2783,6 +2958,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
     acumulado             = datos['acumulado']
 
     eventos_activos_2026 = _eventos_activos_2026(df_alertas_2026_raw)
+    episodios_activos_2026 = _episodios_activos_raw(df_episodios_2026_raw)
     hay_conexion_sheets = gc is not None
 
     col_2025_ep = df_episodios.columns[1]
@@ -2795,7 +2971,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         _kpi_activaciones_simaj(df_episodios, col_2026_ep),
         _kpi_alertas_emergencias(df_alertas, col_2026_al),
         html.Div(id='ficha-eventos-activos',
-                 children=_card_eventos_activos(eventos_activos_2026),
+                 children=_card_eventos_activos(eventos_activos_2026, episodios_activos_2026),
                  style={'flex': '1', 'minWidth': '260px', 'display': 'flex'}),
         dcc.Interval(id='refrescar-eventos',
                      interval=CONFIG.refresco_eventos_seg * 1000, n_intervals=0),
@@ -3110,9 +3286,14 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         def _refrescar_eventos_activos(_n):
             # Así, un cambio en 'Fecha termino' se refleja sin volver a correr
             # todo el pipeline de Python.
-            df_fresco = _leer_hoja_cacheada(
+            df_alertas_fresco = _leer_hoja_cacheada(
                 URL_FUENTE_2026, "NUEVO alertas 2026", CONFIG.refresco_eventos_seg)
-            return _card_eventos_activos(_eventos_activos_2026(df_fresco))
+            df_episodios_fresco = _leer_hoja_cacheada(
+                URL_FUENTE_2026, "Nuevo episodios 2026", CONFIG.refresco_eventos_seg)
+            return _card_eventos_activos(
+                _eventos_activos_2026(df_alertas_fresco),
+                _episodios_activos_raw(df_episodios_fresco),
+            )
 
         # Escribe al Store y no a la gráfica: quien dibuja es el callback
         # clientside de abajo, que es el que sabe el ancho de la pantalla.
@@ -3419,6 +3600,30 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         # 'title', que dcc.Store no tiene, y Dash lo rechazaba en cada carga.
         Output('echarts-dibujado', 'data'),
         Input('datos-echarts-episodios', 'data'),
+    )
+
+    # ── Acordeón de la tabla comparativa de episodios ────────────────────
+    #
+    # Los grupos 1 (Precontingencias) y 2 (Contingencias Fase I) tienen sub-filas
+    # en la tabla; el toggle alterna display:none ↔ table-row-group y rota la
+    # flecha ▶ ↔ ▼. Usa paridad de n_clicks: impar=abierto, par=cerrado.
+    app.clientside_callback(
+        """
+        function(n1, n2) {
+            const abierto  = 'table-row-group';
+            const cerrado  = 'none';
+            const toggle   = (n) => ({display: ((n || 0) % 2 === 1) ? abierto : cerrado});
+            const flecha   = (n) => ((n || 0) % 2 === 1) ? '▼' : '▶';
+            return [toggle(n1), toggle(n2), flecha(n1), flecha(n2)];
+        }
+        """,
+        Output('sub-episodios-1', 'style'),
+        Output('sub-episodios-2', 'style'),
+        Output('arrow-episodios-1', 'children'),
+        Output('arrow-episodios-2', 'children'),
+        Input('toggle-episodios-1', 'n_clicks'),
+        Input('toggle-episodios-2', 'n_clicks'),
+        prevent_initial_call=True,
     )
 
     # ── Serie mensual: cintillo de pastillas solo si hay ancho ───────────

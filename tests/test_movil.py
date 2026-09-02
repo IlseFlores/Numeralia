@@ -195,6 +195,94 @@ class TestEventosActivos2026:
         df = pd.DataFrame([{"No": "1", "Fase": "x"}])
         assert original._eventos_activos_2026(df) == []
 
+    def test_retorna_tipo_alerta(self):
+        df = pd.DataFrame([self._fila_base()])
+        activos = original._eventos_activos_2026(df)
+        assert activos[0]["tipo"] == "alerta"
+
+    def test_retorna_fase_decretada(self):
+        df = pd.DataFrame([self._fila_base()])
+        activos = original._eventos_activos_2026(df)
+        assert activos[0]["fase"] == "Emergencia"
+
+
+class TestEpisodiosActivosRaw:
+    def _fila_base(self):
+        # Simula la estructura real: No, Evento, Contaminante, Municipio,
+        # Inicio, Fin, Estado — igual que en 'Nuevo episodios 2026'.
+        return {
+            "No": "57", "Evento": "PreContingencia Atmosférica",
+            "Contaminante": "O3", "Municipio": "Miravalle",
+            "Inicio": "sábado, 1 de agosto de 2026, 15:00",
+            "Fin": "", "Estado": "Activo",
+        }
+
+    def _df(self, filas):
+        return pd.DataFrame(filas)
+
+    def test_episodio_con_estado_activo_aparece(self):
+        df = self._df([self._fila_base()])
+        activos = original._episodios_activos_raw(df)
+        assert len(activos) == 1
+        assert activos[0]["tipo"] == "episodio"
+        assert activos[0]["municipio"] == "Miravalle"
+
+    def test_episodio_con_estado_concluida_no_cuenta(self):
+        fila = self._fila_base()
+        fila["Estado"] = "Concluida"
+        df = self._df([fila])
+        assert original._episodios_activos_raw(df) == []
+
+    def test_episodio_sin_columna_estado_usa_fin_vacio(self):
+        fila = {
+            "No": "1", "Evento": "PreContingencia Atmosférica",
+            "Contaminante": "O3", "Municipio": "Zapopan",
+            "Inicio": "01-ene-2026", "Fin": "",
+        }
+        df = self._df([fila])
+        activos = original._episodios_activos_raw(df)
+        assert len(activos) == 1
+
+    def test_episodio_sin_columna_estado_con_fin_lleno_no_cuenta(self):
+        fila = {
+            "No": "1", "Evento": "PreContingencia Atmosférica",
+            "Contaminante": "O3", "Municipio": "Zapopan",
+            "Inicio": "01-ene-2026", "Fin": "03-ene-2026",
+        }
+        df = self._df([fila])
+        assert original._episodios_activos_raw(df) == []
+
+    def test_fila_con_no_vacio_no_cuenta(self):
+        fila = self._fila_base()
+        fila["No"] = ""
+        df = self._df([fila])
+        assert original._episodios_activos_raw(df) == []
+
+    def test_sin_columna_fin_ni_estado_devuelve_vacio(self):
+        df = pd.DataFrame([{"No": "1", "Inicio": "x", "Evento": "y"}])
+        assert original._episodios_activos_raw(df) == []
+
+    def test_columnas_intermedias_vacias_no_bloquean_deteccion(self):
+        # En la hoja real puede haber columnas como Latitud/Longitud vacías
+        fila = self._fila_base()
+        fila["Latitud"] = ""   # columna intermedia vacía
+        fila["Longitud"] = ""  # columna intermedia vacía
+        df = self._df([fila])
+        activos = original._episodios_activos_raw(df)
+        assert len(activos) == 1
+
+    def test_severidad_precontingencia(self):
+        df = self._df([self._fila_base()])
+        activos = original._episodios_activos_raw(df)
+        assert activos[0]["severidad"] == 1
+
+    def test_severidad_contingencia_fase_ii(self):
+        fila = self._fila_base()
+        fila["Evento"] = "Contingencia Atmosférica Fase II"
+        df = self._df([fila])
+        activos = original._episodios_activos_raw(df)
+        assert activos[0]["severidad"] == 3
+
 
 class TestComparativoEpisodios:
     """
