@@ -26,8 +26,8 @@ COLOR_BLANCO = '#ffffff'   # rótulos encima de un relleno oscuro
 
 # ── Paleta de marca ─────────────────────────────────────────────────────────
 # Solo estos 3 colores; el resto son tintes/sombras derivados de ellos.
-COLOR_GRIS         = '#465055'   # neutro / estructura
-COLOR_ANIO_PREVIO  = '#191970'   # azul marino — año contra el que se compara
+COLOR_GRIS         = '#999d9e'   # neutro / estructura
+COLOR_ANIO_PREVIO  = '#465055'   # azul marino — año contra el que se compara 191970
 COLOR_ANIO_ACTUAL  = '#4DC2B3'   # aqua/teal — año que se reporta
 
 # Alias históricos. Se conservan mientras el dashboard siga nombrando los años

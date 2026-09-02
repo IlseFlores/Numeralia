@@ -1836,8 +1836,19 @@ def _fig_serie_buena_mensual(df_resumen: pd.DataFrame):
             fillcolor=color, line=dict(width=0),
         )
 
+    # Hasta qué mes llega la gráfica: el último mes con dato en 2026.
+    # Cuando el mes siguiente tenga registro, el rango crece automáticamente.
+    # Si 2026 no tiene ningún dato aún, se muestran todos los meses.
+    d_2026_check = base[(base['_anio'] == 2026) & base['_valor'].notna()]
+    ultimo_mes_2026 = int(d_2026_check['_mes_num'].max()) if not d_2026_check.empty else 12
+
     for anio, color in [(2025, COLOR_2025), (2026, COLOR_2026)]:
-        d = base[(base['_anio'] == anio) & base['_valor'].notna()].sort_values('_mes_num')
+        # Solo se incluyen los meses hasta el último con dato en 2026
+        d = base[
+            (base['_anio'] == anio) &
+            base['_valor'].notna() &
+            (base['_mes_num'] <= ultimo_mes_2026)
+        ].sort_values('_mes_num')
         if d.empty:
             continue
         # cumsum() convierte el valor mensual en acumulado del año a la fecha.
@@ -1886,7 +1897,8 @@ def _fig_serie_buena_mensual(df_resumen: pd.DataFrame):
         xaxis=dict(title=None, showgrid=False, zeroline=False, showline=True,
                     linecolor='#d7dbe2', ticks='', automargin=True, tickfont=dict(size=14),
                     categoryorder='array',
-                    categoryarray=[_MESES_NOMBRE[i] for i in range(1, 13)]),
+                    # El eje se extiende solo hasta el último mes con dato en 2026
+                    categoryarray=[_MESES_NOMBRE[i] for i in range(1, ultimo_mes_2026 + 1)]),
     )
     return fig
 
@@ -2353,23 +2365,27 @@ def _datos_grafica_episodios(df: pd.DataFrame, col_2025: str, col_2026: str,
         'colores_anio': [COLOR_2025, COLOR_2026],
         # Un tono por contaminante, dentro del color de cada año. El índice
         # de la serie elige el tono; el del año elige la escala.
-        'escalas_anio': [ESCALA_EPISODIOS_ANIO_PREVIO, ESCALA_EPISODIOS_ANIO_ACTUAL],
+        # Las escalas van INVERTIDAS: Ozono toma el tono más claro (base) y
+        # PM2.5 el más oscuro (cima), para que el apilado vaya de suave a fuerte.
+        'escalas_anio': [list(reversed(ESCALA_EPISODIOS_ANIO_PREVIO)),
+                         list(reversed(ESCALA_EPISODIOS_ANIO_ACTUAL))],
         # Color del texto de cada segmento, por año y por contaminante (mismo
-        # orden que 'series'). Baja a este detalle porque el contraste lo
-        # decide el tono exacto del relleno, no el año: los tres tonos del año
-        # previo son oscuros y aguantan letra blanca, pero en el año actual el
-        # del Ozono queda casi blanco y ahí el blanco desaparece (contraste
-        # 1.1). Ese segmento va entero en el aqua del año: es una decisión de
-        # identidad visual y no de legibilidad, porque el aqua sobre ese tono
-        # solo da 1.9 de contraste (el gris daría 7.4). Si alguna vez hay que
-        # priorizar que se lea, el arreglo de fondo es oscurecer el primer tono
-        # de ESCALA_EPISODIOS_ANIO_ACTUAL, no cambiar el color del texto.
+        # orden que 'series'). Con la escala invertida:
+        #   2025: Ozono=claro (≥4.5 contra blanco), PM10=medio, PM2.5=oscuro →
+        #         los tres aguantan letra blanca.
+        #   2026: Ozono=tono más oscuro (blanco OK), PM10=medio (blanco OK),
+        #         PM2.5=tono más claro (casi blanco, contraste <2) → usa el
+        #         color pleno del año en vez de blanco.
         'colores_texto_anio': [
-            [{'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO} for _ in contaminantes],
             [
-                {'nombre': COLOR_2026, 'valor': COLOR_2026},         # Ozono
-                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},    # PM10
-                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},    # PM2.5
+                {'nombre': COLOR_2025,   'valor': COLOR_2025},       # Ozono – tono claro post-inversión
+                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},     # PM10  – tono medio  (contraste ≥ 4.9 ✓)
+                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},     # PM2.5 – tono oscuro (contraste ≥ 8.0 ✓)
+            ],
+            [
+                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},     # Ozono – tono oscuro
+                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},     # PM10  – tono medio
+                {'nombre': COLOR_2026,   'valor': COLOR_2026},        # PM2.5 – tono claro
             ],
         ],
         'series': [
@@ -2505,26 +2521,37 @@ def _card_imeca(df_imeca: pd.DataFrame):
         valor = _get(anio, 'IMECA Máximo del año')
         return html.Div([
             html.Div(anio, style={'color': color, 'fontWeight': '800', 'fontSize': '15px',
-                                   'letterSpacing': '0.04em', 'textTransform': 'uppercase'}),
-            html.Div(str(valor), style={'color': COLOR_GRIS, 'fontSize': '42px', 'fontWeight': '800',
-                                         'lineHeight': '1', 'margin': '4px 0'}),
-            html.Div(_clasificar_imeca(valor), style={
-                'display': 'inline-block', 'backgroundColor': color, 'color': '#ffffff',
-                'borderRadius': '999px', 'padding': '2px 12px', 'fontSize': '13px', 'fontWeight': '700',
-                'marginBottom': '10px',
-            }),
+                                   'letterSpacing': '0.04em', 'textTransform': 'uppercase',
+                                   'marginBottom': '4px'}),
+            # Fila interna: número+badge a la izquierda, metadata a la derecha
             html.Div([
-                html.Div([html.Span('Contaminante  ', style={'color': COLOR_GRIS_MUTE}),
-                          html.B(_get(anio, 'Contaminante'), style={'color': COLOR_GRIS})]),
-                html.Div([html.Span('Estación  ', style={'color': COLOR_GRIS_MUTE}),
-                          html.B(_get(anio, 'Estación'), style={'color': COLOR_GRIS})]),
-                html.Div([html.Span('Fecha  ', style={'color': COLOR_GRIS_MUTE}),
-                          html.B(_fecha_mes_abreviado(_get(anio, 'Fecha')),
-                                 style={'color': COLOR_GRIS})]),
-                html.Div([html.Span('Hora  ', style={'color': COLOR_GRIS_MUTE}),
-                          html.B(_get(anio, 'Hora'), style={'color': COLOR_GRIS})]),
-            ], style={'fontSize': '15px', 'display': 'grid', 'gap': '4px'}),
-        ], className='bloque-imeca-anio', style={'flex': '1', 'padding': '18px 22px',
+                # Columna izquierda: número grande + badge
+                html.Div([
+                    html.Div(str(valor), style={'color': COLOR_GRIS, 'fontSize': '42px',
+                                                'fontWeight': '800', 'lineHeight': '1'}),
+                    html.Div(_clasificar_imeca(valor), style={
+                        'display': 'inline-block', 'backgroundColor': color, 'color': '#ffffff',
+                        'borderRadius': '999px', 'padding': '2px 12px',
+                        'fontSize': '13px', 'fontWeight': '700', 'marginTop': '6px',
+                    }),
+                ], style={'display': 'flex', 'flexDirection': 'column',
+                          'alignItems': 'flex-start', 'marginRight': '20px',
+                          'flexShrink': '0'}),
+                # Columna derecha: metadata
+                html.Div([
+                    html.Div([html.Span('Contaminante  ', style={'color': COLOR_GRIS_MUTE}),
+                              html.B(_get(anio, 'Contaminante'), style={'color': COLOR_GRIS})]),
+                    html.Div([html.Span('Estación  ', style={'color': COLOR_GRIS_MUTE}),
+                              html.B(_get(anio, 'Estación'), style={'color': COLOR_GRIS})]),
+                    html.Div([html.Span('Fecha  ', style={'color': COLOR_GRIS_MUTE}),
+                              html.B(_fecha_mes_abreviado(_get(anio, 'Fecha')),
+                                     style={'color': COLOR_GRIS})]),
+                    html.Div([html.Span('Hora  ', style={'color': COLOR_GRIS_MUTE}),
+                              html.B(_get(anio, 'Hora'), style={'color': COLOR_GRIS})]),
+                ], style={'fontSize': '14px', 'display': 'grid', 'gap': '4px',
+                          'alignContent': 'center'}),
+            ], style={'display': 'flex', 'flexDirection': 'row', 'alignItems': 'center'}),
+        ], className='bloque-imeca-anio', style={'flex': '1', 'padding': '14px 22px',
                   'borderLeft': f'4px solid {color}', '--color-acento': color})
 
     return html.Div([
@@ -3123,7 +3150,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         html.Div([
             html.Div([
                 dcc.Graph(id='mapa-grafico', figure=fig_mapa,
-                          className='grafica-mapa', style={'height': '600px'},
+                          className='grafica-mapa', style={'height': '480px'},
                           config={'responsive': True}),
                 # Oculta en pantalla; el callback del PDF la muestra en lugar
                 # del mapa interactivo justo antes de capturar.
@@ -3434,17 +3461,14 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 // para poder compararlas de un golpe de vista.
                 const med = compacta
                     ? {nombre: 10, valor: 13, salto: 12, total: 14, distancia: 16,
-                       titulo: 13, leyenda: 11, eje: 12, gridArriba: 40, gridAbajo: 38}
+                       titulo: 13, eje: 12, gridArriba: 40, gridAbajo: 22}
                     : {nombre: 11, valor: 16, salto: 13, total: 17, distancia: 22,
-                       titulo: 15, leyenda: 13, eje: 14, gridArriba: 64, gridAbajo: 46};
+                       titulo: 15, eje: 14, gridArriba: 64, gridAbajo: 28};
 
                 // El eje lo fija el año con más episodios, así que un
                 // segmento chico ocupa la misma fracción por más alta que se
                 // haga la gráfica. De ahí el alto mínimo de abajo.
                 const maxTotal = Math.max.apply(null, cfg.totales) || 1;
-                // Fracción por debajo de la cual ya no cabe el nombre además
-                // del número.
-                const fraccionEstrecha = 0.09;
 
                 const series = cfg.series.map(function (s, i) {
                     return {
@@ -3474,12 +3498,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                             position: 'inside',
                             formatter: function (p) {
                                 if (!p.value) { return ''; }
-                                // En un segmento angosto no cabe el nombre
-                                // además del número; el tono y la leyenda
-                                // ya dicen de qué contaminante se trata.
-                                if (p.value / maxTotal < fraccionEstrecha) {
-                                    return '{v|' + p.value + '}';
-                                }
+                                // Siempre muestra nombre y valor; hideOverlap
+                                // evita que se encimen si la barra es muy pequeña.
                                 return '{n|' + s.nombre + '}\\n{v|' + p.value + '}';
                             },
                             // El color del texto lo decide el tono del relleno,
@@ -3573,16 +3593,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                    pct + '% de ' + t;
                         }
                     },
-                    legend: {
-                        bottom: 0,
-                        // Un poco más grandes que antes: en 11 px los tres
-                        // cuadritos se veían casi iguales.
-                        itemWidth: compacta ? 13 : 16,
-                        itemHeight: compacta ? 11 : 14,
-                        itemGap: compacta ? 8 : 12,
-                        textStyle: {fontSize: med.leyenda, color: '""" + COLOR_GRIS_MUTE + """'},
-                        data: cfg.series.map(function (s) { return s.nombre; })
-                    },
+                    legend: {show: false},
                     xAxis: {
                         type: 'category',
                         data: cfg.anios,
@@ -3822,16 +3833,20 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
             // Umbral propio de esta gráfica, distinto de los 768px del resto
             // del layout: aquí no manda el acomodo de las tarjetas sino la
-            // geometría de la pastilla. Con C = ancho del contenedor, el
-            // margen del trazado se lleva 80px y los 12 meses se reparten el
-            // resto, así que la pastilla (0.24 categorías) mide
-            // 0.24 × (C − 80) / 12 = 0.02 × (C − 80) píxeles. Un número de dos
-            // dígitos a 13px pide ~18px, de donde C >= 980.
+            // geometría de la pastilla. Con C = ancho del contenedor y N meses
+            // en el eje, la pastilla (0.24 categorías) mide
+            // 0.24 × (C − 80) / N píxeles. Un número de dos dígitos a 13px
+            // pide ~18px, de donde C ≥ 75 × N + 80.
             //
-            // Antes esto se medía contra window.innerWidth con 768, y dejaba
-            // fuera a todos los iPad: uno en vertical mide exactamente 768, y
-            // su pastilla, 11.5px.
-            const ANCHO_MINIMO_CINTILLO = 980;
+            // El número de meses es dinámico: crece de 1 a 12 conforme se van
+            // capturando registros en 2026. Por eso el umbral se calcula aquí
+            // a partir del categoryarray de la figura, en vez de fijarse a 980
+            // (que era el valor para los 12 meses de un año completo).
+            const nMeses = (figuraBase.layout && figuraBase.layout.xaxis &&
+                            figuraBase.layout.xaxis.categoryarray)
+                           ? figuraBase.layout.xaxis.categoryarray.length
+                           : 12;
+            const ANCHO_MINIMO_CINTILLO = 75 * nMeses + 80;
 
             // Se mide el contenedor y no la ventana por dos razones: es lo que
             // de verdad fija el tamaño de la pastilla, y durante la captura
