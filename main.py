@@ -1521,11 +1521,18 @@ from numeralia.reporte.tema import (                              # noqa: E402
     COLOR_TEXT,
     COLOR_2025,
     COLOR_2026,
+    ESCALA_ANIO_ACTUAL,
+    ESCALA_ANIO_PREVIO,
     ESCALA_EPISODIOS_ANIO_ACTUAL,
     ESCALA_EPISODIOS_ANIO_PREVIO,
     PLOTLY_TEMPLATE,
     SEVERIDAD_TINTES as _SEVERIDAD_TINTES,
 )
+
+# Tono tenue (más claro) de cada año: sirve para las alertas en las barras
+# del comparativo Alertas/Emergencias. El tono fuerte es el COLOR_202X pleno.
+_COLOR_ALERTA_25 = ESCALA_ANIO_PREVIO[0]   # azul marino muy claro
+_COLOR_ALERTA_26 = ESCALA_ANIO_ACTUAL[0]   # aqua muy claro
 
 
 def _icono_descarga(btn_id: str):
@@ -2374,7 +2381,7 @@ def _datos_grafica_episodios(df: pd.DataFrame, col_2025: str, col_2026: str,
     }
 
 
-# ── Tabla de Alertas y Emergencias ──────────────────────────────────────────
+# ── Tabla y gráficas de Alertas y Emergencias ───────────────────────────────
 
 def _tabla_alertas(df: pd.DataFrame):
     col_label, col_2025, col_2026 = df.columns[0], df.columns[1], df.columns[2]
@@ -2414,6 +2421,36 @@ def _tabla_alertas(df: pd.DataFrame):
         className='tabla-scroll',
         style={'borderRadius': '10px', 'overflow': 'hidden', 'border': f'1px solid {COLOR_GRIS_100}'}
     )
+
+
+def _datos_barras_alertas(df_alertas: pd.DataFrame) -> dict:
+    """
+    Extrae alertas y emergencias por año del DataFrame comparativo para
+    pasarlos como JSON al clientside_callback de ECharts.
+    """
+    col_label, col_2025, col_2026 = df_alertas.columns[0], df_alertas.columns[1], df_alertas.columns[2]
+
+    def _val(prefix, col):
+        m = df_alertas[df_alertas[col_label].str.strip().str.lower().str.startswith(prefix.lower())]
+        return int(_to_num(m.iloc[0][col]) or 0) if not m.empty else 0
+
+    return {
+        'alertas_25':     _val('alerta', col_2025),
+        'emergencias_25': _val('emergencia', col_2025),
+        'alertas_26':     _val('alerta', col_2026),
+        'emergencias_26': _val('emergencia', col_2026),
+        # Colores de relleno
+        'color_a25': _COLOR_ALERTA_25,
+        'color_e25': COLOR_2025,
+        'color_a26': _COLOR_ALERTA_26,
+        'color_e26': COLOR_2026,
+        # Alertas (fondo tenue): texto gris oscuro para legibilidad
+        # Emergencias (fondo pleno): texto blanco
+        'texto_a25': COLOR_GRIS,
+        'texto_e25': COLOR_BLANCO,
+        'texto_a26': COLOR_GRIS,
+        'texto_e26': COLOR_BLANCO,
+    }
 
 
 # ── Tarjeta de IMECA Máximo ──────────────────────────────────────────────
@@ -3026,8 +3063,31 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         html.Div('Episodios derivados de eventos extraordinarios, como incendios u otras fuentes '
                   'que pueden afectar la calidad del aire.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
-        _tabla_alertas(df_alertas),
-    ], style={**CARD_STYLE, 'flex': '1', 'minWidth': '320px'})
+        # Tabla izquierda + barras horizontales derechas en el mismo cuadro
+        html.Div([
+            # Mitad izquierda: tabla comparativa
+            html.Div(
+                [_tabla_alertas(df_alertas)],
+                style={'flex': '0 0 48%', 'minWidth': '260px'},
+            ),
+            # Mitad derecha: dos barras horizontales apiladas (una por año)
+            html.Div([
+                html.Div(id='echart-barras-alertas-25',
+                         style={'flex': '1', 'minHeight': '88px'}),
+                html.Div(id='echart-barras-alertas-26',
+                         style={'flex': '1', 'minHeight': '88px'}),
+            ], style={'flex': '1', 'minWidth': '200px',
+                      'display': 'flex', 'flexDirection': 'column', 'gap': '6px',
+                      'alignSelf': 'stretch',
+                      'paddingLeft': '22px'}),
+        ], className='fila-apilable',
+           style={'display': 'flex', 'gap': '20px',
+                  'flexWrap': 'wrap', 'alignItems': 'stretch'}),
+        # Datos para ECharts (se consumen en el clientside_callback)
+        dcc.Store(id='datos-barras-alertas',
+                  data=_datos_barras_alertas(df_alertas)),
+        dcc.Store(id='barras-alertas-dibujado'),
+    ], style={**CARD_STYLE, 'flex': '1', 'minWidth': '320px', 'marginBottom': '20px'})
 
     imeca_card = html.Div([_card_imeca(df_imeca)], style={**CARD_STYLE, 'marginBottom': '20px'})
 
@@ -3624,6 +3684,124 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         Input('toggle-episodios-1', 'n_clicks'),
         Input('toggle-episodios-2', 'n_clicks'),
         prevent_initial_call=True,
+    )
+
+    # ── Barras horizontales Alertas / Emergencias ─────────────────────────
+    #
+    # Mismo estilo visual que las gráficas de episodios: esquinas redondeadas,
+    # borde del color del año, rich text con nombre + valor en tamaños distintos,
+    # y labelLayout: hideOverlap para segmentos angostos.
+    # Dos barras, una por año. Tono tenue = Alertas; tono pleno = Emergencias.
+    app.clientside_callback(
+        """
+        function(datos) {
+            if (!datos || typeof echarts === 'undefined') {
+                return window.dash_clientside.no_update;
+            }
+
+            function dibujar(divId, anio,
+                             valorA, valorE,
+                             colorA, colorE,
+                             textoA, textoE) {
+                const el = document.getElementById(divId);
+                if (!el) return;
+                let c = echarts.getInstanceByDom(el);
+                if (!c) c = echarts.init(el, null, {renderer: 'svg'});
+
+                const total = (valorA || 0) + (valorE || 0) || 1;
+                // Por debajo del 12 % del total el segmento es demasiado angosto
+                // para mostrar el nombre; solo sale el número.
+                const fracEstrecha = 0.12;
+
+                c.setOption({
+                    animation: false,
+                    grid: {top: 8, bottom: 8, left: 8, right: 8, containLabel: true},
+                    xAxis: {type: 'value', show: false},
+                    yAxis: {
+                        type: 'category',
+                        data: [anio],
+                        axisLabel: {color: colorE, fontWeight: 'bold', fontSize: 13},
+                        axisTick: {show: false},
+                        axisLine: {show: false}
+                    },
+                    series: [
+                        {
+                            // Alertas – segmento izquierdo
+                            type: 'bar', stack: 'total',
+                            data: [valorA],
+                            barWidth: '72%',
+                            barMinHeight: 20,
+                            itemStyle: {
+                                color: colorA,
+                                borderColor: colorE,
+                                borderWidth: 1.2,
+                                borderRadius: 4
+                            },
+                            label: {
+                                show: !!valorA,
+                                position: 'inside',
+                                formatter: function(p) {
+                                    if (!p.value) return '';
+                                    if (p.value / total < fracEstrecha) {
+                                        return '{v|' + p.value + '}';
+                                    }
+                                    return '{n|Alertas}\\n{v|' + p.value + '}';
+                                },
+                                rich: {
+                                    n: {fontSize: 11, color: textoA, lineHeight: 12, align: 'center'},
+                                    v: {fontSize: 14, fontWeight: 'bold', color: textoA, align: 'center'}
+                                }
+                            },
+                            labelLayout: {hideOverlap: true},
+                            emphasis: {focus: 'series'}
+                        },
+                        {
+                            // Emergencias – segmento derecho
+                            type: 'bar', stack: 'total',
+                            data: [valorE],
+                            barWidth: '72%',
+                            barMinHeight: 20,
+                            itemStyle: {
+                                color: colorE,
+                                borderColor: colorE,
+                                borderWidth: 1.2,
+                                borderRadius: 4
+                            },
+                            label: {
+                                show: !!valorE,
+                                position: 'inside',
+                                formatter: function(p) {
+                                    if (!p.value) return '';
+                                    if (p.value / total < fracEstrecha) {
+                                        return '{v|' + p.value + '}';
+                                    }
+                                    return '{n|Emergencias}\\n{v|' + p.value + '}';
+                                },
+                                rich: {
+                                    n: {fontSize: 11, color: textoE, lineHeight: 12, align: 'center'},
+                                    v: {fontSize: 14, fontWeight: 'bold', color: textoE, align: 'center'}
+                                }
+                            },
+                            labelLayout: {hideOverlap: true},
+                            emphasis: {focus: 'series'}
+                        }
+                    ]
+                });
+            }
+
+            dibujar('echart-barras-alertas-25', '2025',
+                    datos.alertas_25, datos.emergencias_25,
+                    datos.color_a25, datos.color_e25,
+                    datos.texto_a25, datos.texto_e25);
+            dibujar('echart-barras-alertas-26', '2026',
+                    datos.alertas_26, datos.emergencias_26,
+                    datos.color_a26, datos.color_e26,
+                    datos.texto_a26, datos.texto_e26);
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output('barras-alertas-dibujado', 'data'),
+        Input('datos-barras-alertas', 'data'),
     )
 
     # ── Serie mensual: cintillo de pastillas solo si hay ancho ───────────
