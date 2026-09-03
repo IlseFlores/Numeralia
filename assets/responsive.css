@@ -131,3 +131,31 @@ body.capturando-pdf .grafica-mapa {
   }
 }
 
+/* ── Desktop: espacio entre logos y título ───────────────────────────────
+ *
+ * Solo en pantallas anchas (y en la captura del PDF) se baja el título
+ * debajo de los logos. En celular/tablet el responsive deja el encabezado
+ * apilado, así que no se toca.
+ */
+@media (min-width: 1025px) {
+  .fila-encabezado {
+    align-items: flex-start !important;
+  }
+  .fila-encabezado > div:first-child,
+  .fila-encabezado > div:last-child {
+    align-items: flex-start !important;
+  }
+  .fila-encabezado .titulo-reporte {
+    margin-top: 92px !important;
+  }
+}
+
+body.capturando-pdf .fila-encabezado,
+body.capturando-pdf .fila-encabezado > div:first-child,
+body.capturando-pdf .fila-encabezado > div:last-child {
+  align-items: flex-start !important;
+}
+body.capturando-pdf .fila-encabezado .titulo-reporte {
+  margin-top: 92px !important;
+}
+

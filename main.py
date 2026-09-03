@@ -1640,7 +1640,7 @@ def _encabezado_reporte():
             'maxWidth': '100%', 'objectFit': 'contain',
         }) if src else None
         return html.Div(contenido, style={
-            'flex': '1 1 0', 'display': 'flex', 'alignItems': 'flex-start',
+            'flex': '1 1 0', 'display': 'flex', 'alignItems': 'center',
             'justifyContent': alineacion, 'minWidth': '0',
         })
 
@@ -1650,7 +1650,7 @@ def _encabezado_reporte():
             _celda_logo(src_simaj, 'flex-start', 'logo-simaj'),
             html.Div([
                 html.H1('Reporte Diario de Calidad del Aire', className='titulo-reporte', style={
-                    'margin': f'calc({ALTO_LOGO} + 15px) 0 0 0', 'fontSize': '32px', 'fontWeight': '600',
+                    'margin': '0', 'fontSize': '32px', 'fontWeight': '600',
                     'color': '#173d4c', 'textAlign': 'center', 'lineHeight': '1.15',
                 }),
                 html.Div(_fecha_encabezado(), className='fecha-reporte', style={
@@ -1658,10 +1658,10 @@ def _encabezado_reporte():
                     'textAlign': 'center', 'marginTop': '8px',
                 }),
             ], style={'flex': '2 1 0', 'display': 'flex', 'alignItems': 'center',
-                      'justifyContent': 'flex-start', 'padding': '0 24px',
+                      'justifyContent': 'center', 'padding': '0 24px',
                       'flexDirection': 'column', 'minWidth': '0'}),
             _celda_logo(src_semadet, 'flex-end'),
-        ], className='fila-encabezado', style={'display': 'flex', 'alignItems': 'flex-start',
+        ], className='fila-encabezado', style={'display': 'flex', 'alignItems': 'center',
                   'gap': '24px', 'marginBottom': '22px'}),
 
         # Introducción
@@ -3185,10 +3185,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                          style={'flex': '1', 'minHeight': '110px'}),
                 html.Div(id='echart-barras-alertas-26',
                          style={'flex': '1', 'minHeight': '110px'}),
-            ], style={'flex': '1 1 400px', 'minWidth': '610px',
+            ], style={'flex': '1 1 400px', 'minWidth': '690px',
                       'display': 'flex', 'flexDirection': 'column', 'gap': '6px',
-                      'alignSelf': 'stretch',
-                      'paddingLeft': '22px'}),
+                      'alignSelf': 'stretch'}),
         ], className='fila-apilable',
            style={'display': 'flex', 'gap': '20px',
                   'flexWrap': 'wrap', 'alignItems': 'stretch'}),
@@ -3329,6 +3328,16 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
       body.capturando-pdf,
       body.capturando-pdf #react-entry-point {
         min-width: 1280px;
+      }
+      /* Durante la captura del PDF el título baja debajo de los logos,
+         igual que en escritorio. */
+      body.capturando-pdf .fila-encabezado,
+      body.capturando-pdf .fila-encabezado > div:first-child,
+      body.capturando-pdf .fila-encabezado > div:last-child {
+        align-items: flex-start !important;
+      }
+      body.capturando-pdf .fila-encabezado .titulo-reporte {
+        margin-top: 92px !important;
       }
       @media print {
         @page { size: A4 portrait; margin: 5mm; }
@@ -3806,6 +3815,12 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 return window.dash_clientside.no_update;
             }
 
+            const compacta = getComputedStyle(document.body)
+                                  .getPropertyValue('--modo-compacto').trim() === '1';
+            const fAnio = compacta ? 11 : 13;
+            const fNombre = compacta ? 9 : 11;
+            const fValor = compacta ? 12 : 14;
+
             function dibujar(divId, anio,
                              valorA, valorE,
                              colorA, colorE,
@@ -3827,7 +3842,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     yAxis: {
                         type: 'category',
                         data: [anio],
-                        axisLabel: {color: colorE, fontWeight: 'bold', fontSize: 13},
+                        axisLabel: {color: colorE, fontWeight: 'bold', fontSize: fAnio},
                         axisTick: {show: false},
                         axisLine: {show: false}
                     },
@@ -3855,8 +3870,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                     return '{n|Alertas}\\n{v|' + p.value + '}';
                                 },
                                 rich: {
-                                    n: {fontSize: 11, color: textoA, lineHeight: 12, align: 'center'},
-                                    v: {fontSize: 14, fontWeight: 'bold', color: textoA, align: 'center'}
+                                    n: {fontSize: fNombre, color: textoA, lineHeight: 12, align: 'center'},
+                                    v: {fontSize: fValor, fontWeight: 'bold', color: textoA, align: 'center'}
                                 }
                             },
                             labelLayout: {hideOverlap: true},
@@ -3885,8 +3900,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                     return '{n|Emergencias}\\n{v|' + p.value + '}';
                                 },
                                 rich: {
-                                    n: {fontSize: 11, color: textoE, lineHeight: 12, align: 'center'},
-                                    v: {fontSize: 14, fontWeight: 'bold', color: textoE, align: 'center'}
+                                    n: {fontSize: fNombre, color: textoE, lineHeight: 12, align: 'center'},
+                                    v: {fontSize: fValor, fontWeight: 'bold', color: textoE, align: 'center'}
                                 }
                             },
                             labelLayout: {hideOverlap: true},
@@ -3894,6 +3909,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                         }
                     ]
                 });
+                c.resize();
             }
 
             dibujar('echart-barras-alertas-25', '2025',
@@ -3904,6 +3920,17 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     datos.alertas_26, datos.emergencias_26,
                     datos.color_a26, datos.color_e26,
                     datos.texto_a26, datos.texto_e26);
+
+            if (!window.__alertasResizeBound) {
+                window.__alertasResizeBound = true;
+                window.addEventListener('resize', function () {
+                    ['echart-barras-alertas-25', 'echart-barras-alertas-26'].forEach(function (id) {
+                        const inst = echarts.getInstanceByDom(document.getElementById(id));
+                        if (inst) { inst.resize(); }
+                    });
+                });
+            }
+
             return window.dash_clientside.no_update;
         }
         """,
