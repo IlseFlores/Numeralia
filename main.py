@@ -3331,7 +3331,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         min-width: 1280px;
       }
       @media print {
-        @page { size: A4 landscape; margin: 10mm; }
+        @page { size: A4 portrait; margin: 5mm; }
         /* La impresión con Ctrl+P también va en el layout de escritorio. Antes
            lo heredaba del min-width global; al hacerlo responsive hay que
            repetirlo aquí, o imprimir desde una ventana angosta saldría con las
@@ -3390,17 +3390,14 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         html.Div([
             _card_serie_mensual_2025(df_resumen_mensual),
             mapa_card,
+            imeca_card,
         ], id='pdf-pagina-2'),
 
         html.Div([
-            imeca_card,
             bitacora_episodios_card,
             bitacora_alertas_card,
-        ], id='pdf-pagina-3'),
-
-        html.Div([
             parametros_card,
-        ], id='pdf-pagina-4'),
+        ], id='pdf-pagina-3'),
     ], className='lienzo-reporte', style={
         'backgroundColor': COLOR_BG,
         'minHeight': '100vh',
@@ -4384,7 +4381,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 // su contenido (ver abajo) y eso hay que conocerlo desde la
                 // primera página, no solo desde la segunda en adelante.
                 const lienzos = [];
-                for (const idPag of ['pdf-pagina-1', 'pdf-pagina-2', 'pdf-pagina-3', 'pdf-pagina-4']) {
+                for (const idPag of ['pdf-pagina-1', 'pdf-pagina-2', 'pdf-pagina-3']) {
                     const bloque = document.getElementById(idPag);
                     if (!bloque) { continue; }
                     lienzos.push(await html2canvas(bloque, {
@@ -4395,19 +4392,14 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     }));
                 }
 
-                const margen = 8;
+                const margenX = 8;
+                const margenY = 5;
                 let pdf = null;
                 lienzos.forEach(function (lienzo) {
-                    // Orientación según la forma real del contenido, en vez
-                    // de horizontal fija para las tres: la página de KPIs +
-                    // episodios es ancha y corta y cabe bien en horizontal,
-                    // pero la del mapa y la de las bitácoras apilan tarjetas
-                    // completas y salen más altas que anchas — en horizontal
-                    // se ahogan de márgenes en los costados para no
-                    // desbordar por arriba/abajo. Cada hoja usa la que le
-                    // deje menos espacio en blanco.
-                    const vertical = lienzo.height > lienzo.width;
-                    const orientacion = vertical ? 'p' : 'l';
+                    // Todas las hojas en vertical (A4 portrait), con el
+                    // contenido alineado arriba para no dejar tanto espacio
+                    // en blanco en la parte superior.
+                    const orientacion = 'p';
 
                     if (!pdf) {
                         pdf = new jspdf.jsPDF(orientacion, 'mm', 'a4');
@@ -4417,18 +4409,18 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
                     const anchoPag = pdf.internal.pageSize.getWidth();
                     const altoPag = pdf.internal.pageSize.getHeight();
-                    const anchoUtil = anchoPag - margen * 2;
-                    const altoUtil = altoPag - margen * 2;
+                    const anchoUtil = anchoPag - margenX * 2;
+                    const altoUtil = altoPag - margenY * 2;
 
                     // Se escala por el lado que primero se topa con el borde,
-                    // así el bloque cabe entero en la hoja y se centra.
+                    // así el bloque cabe entero en la hoja sin salirse.
                     const escala = Math.min(anchoUtil / lienzo.width,
                                             altoUtil / lienzo.height);
                     const ancho = lienzo.width * escala;
                     const alto = lienzo.height * escala;
 
                     pdf.addImage(lienzo.toDataURL('image/png'), 'PNG',
-                                 (anchoPag - ancho) / 2, (altoPag - alto) / 2, ancho, alto);
+                                 (anchoPag - ancho) / 2, margenY, ancho, alto);
                 });
 
                 if (!pdf) { throw new Error('No hay páginas que exportar.'); }
