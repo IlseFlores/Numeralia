@@ -35,6 +35,10 @@ COLOR_ANIO_ACTUAL  = '#4DC2B3'   # aqua/teal — año que se reporta
 COLOR_2025 = COLOR_ANIO_PREVIO
 COLOR_2026 = COLOR_ANIO_ACTUAL
 
+# Color para títulos de tarjetas y secciones. Inicialmente igual al del
+# año previo; se expone aparte para poder cambiarlo sin afectar los gráficos.
+COLOR_TITULOS = '#465055'
+
 COLOR_GOOD = COLOR_ANIO_ACTUAL  # mapa: mejora (menos días de mala calidad)
 COLOR_BAD  = COLOR_ANIO_PREVIO  # mapa: empeora (más días de mala calidad)
 

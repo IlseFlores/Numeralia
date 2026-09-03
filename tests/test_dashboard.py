@@ -88,19 +88,18 @@ class TestDatosGraficaEpisodios:
         for entrada in datos_grafica["colores_texto_anio"][0][1:]:
             assert entrada == {"nombre": COLOR_BLANCO, "valor": COLOR_BLANCO}
 
-    def test_el_pm25_del_anio_actual_va_en_el_color_del_anio(self, datos_grafica):
-        # Con la escala invertida, PM2.5 ocupa el tono más claro de la escala
-        # (índice 2 en el JSON, que corresponde al índice 0 original del aqua
-        # casi-blanco). El blanco desaparecería encima de ese tono.
-        pm25 = datos_grafica["series"][2]["nombre"]
-        assert pm25 == "PM2.5"
-        assert datos_grafica["colores_texto_anio"][1][2] == {
+    def test_el_ozono_del_anio_actual_va_en_el_color_del_anio(self, datos_grafica):
+        # Ozono ocupa el tono más claro (índice 0). El blanco desaparecería
+        # encima de ese tono casi blanco, así que va en el color pleno del año.
+        ozono = datos_grafica["series"][0]["nombre"]
+        assert ozono == "Ozono"
+        assert datos_grafica["colores_texto_anio"][1][0] == {
             "nombre": COLOR_2026, "valor": COLOR_2026}
 
     def test_el_resto_del_anio_actual_va_en_blanco(self, datos_grafica):
-        # Ozono (índice 0) → tono más oscuro; PM10 (índice 1) → tono medio.
-        # Ambos aguantan letra blanca; solo PM2.5 (índice 2) usa el color del año.
-        for entrada in datos_grafica["colores_texto_anio"][1][:2]:
+        # PM10 (índice 1) y PM2.5 (índice 2) tienen fondos medios/oscuros
+        # y aguantan letra blanca.
+        for entrada in datos_grafica["colores_texto_anio"][1][1:]:
             assert entrada == {"nombre": COLOR_BLANCO, "valor": COLOR_BLANCO}
 
     def test_las_series_van_en_el_orden_de_apilado(self, datos_grafica):
@@ -157,8 +156,8 @@ class TestLegibilidadEpisodios:
     """
 
     def test_el_blanco_se_lee_en_los_tonos_con_letra_blanca_del_anio_previo(self):
-        # Con la escala invertida, Ozono usa el color pleno del año (no blanco),
-        # así que solo se verifica el contraste de PM10 (índice 1) y PM2.5 (0).
+        # Ozono (índice 2) usa el color pleno del año (no blanco), así que solo
+        # se verifica el contraste de PM2.5 (índice 0) y PM10 (índice 1).
         # Ambos tienen contraste ≥ 4.5 con el color de fondo actual (#465055).
         for tono in ESCALA_EPISODIOS_ANIO_PREVIO[:2]:
             assert _contraste(COLOR_BLANCO, tono) >= 4.5

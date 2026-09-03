@@ -1526,6 +1526,7 @@ from numeralia.reporte.tema import (                              # noqa: E402
     ESCALA_EPISODIOS_ANIO_ACTUAL,
     ESCALA_EPISODIOS_ANIO_PREVIO,
     PLOTLY_TEMPLATE,
+    tinte,
     SEVERIDAD_TINTES as _SEVERIDAD_TINTES,
 )
 
@@ -2271,13 +2272,13 @@ def _tabla_episodios(df: pd.DataFrame):
                                       id=f'sub-episodios-{sev}',
                                       style={'display': 'none'}))
 
-    # Fila de totales
+    # Fila de totales: mismo fondo aqua diluido y color de letra que los KPI.
     if fila_totales is not None:
-        base_tot = {'backgroundColor': COLOR_GRIS, 'color': '#ffffff', 'fontWeight': '800'}
+        base_tot = {**_KPI_PIE, 'color': COLOR_GRIS}
         tbodies.append(html.Tbody([html.Tr([
             html.Td(str(fila_totales[col_label]).strip(), style=_lbl(base_tot)),
-            html.Td(fila_totales[col_2025], style=_num(base_tot)),
-            html.Td(fila_totales[col_2026], style=_num(base_tot)),
+            html.Td(fila_totales[col_2025], style={**_num(base_tot), 'fontWeight': '800'}),
+            html.Td(fila_totales[col_2026], style={**_num(base_tot), 'fontWeight': '800'}),
         ])]))
 
     encabezado = html.Thead(html.Tr([
@@ -2354,6 +2355,12 @@ def _datos_grafica_episodios(df: pd.DataFrame, col_2025: str, col_2026: str,
     datos_26 = dict(_episodios_por_contaminante(df, col_2026, severidad))
     contaminantes = list(_ORDEN_CONTAMINANTES)
 
+    _escala_25 = list(reversed(ESCALA_EPISODIOS_ANIO_PREVIO))
+    _escala_26 = list(ESCALA_EPISODIOS_ANIO_ACTUAL)
+    # Ozono se aclara un poco más con tinte para resaltar el degradado.
+    _escala_25[0] = tinte(_escala_25[0], 0.85)
+    _escala_26[0] = tinte(_escala_26[0], 0.95)
+
     return {
         'titulo': titulo,
         # Los títulos van en el negro de texto del reporte, no en el color de
@@ -2365,27 +2372,25 @@ def _datos_grafica_episodios(df: pd.DataFrame, col_2025: str, col_2026: str,
         'colores_anio': [COLOR_2025, COLOR_2026],
         # Un tono por contaminante, dentro del color de cada año. El índice
         # de la serie elige el tono; el del año elige la escala.
-        # Las escalas van INVERTIDAS: Ozono toma el tono más claro (base) y
-        # PM2.5 el más oscuro (cima), para que el apilado vaya de suave a fuerte.
-        'escalas_anio': [list(reversed(ESCALA_EPISODIOS_ANIO_PREVIO)),
-                         list(reversed(ESCALA_EPISODIOS_ANIO_ACTUAL))],
-        # Color del texto de cada segmento, por año y por contaminante (mismo
-        # orden que 'series'). Con la escala invertida:
-        #   2025: Ozono=claro (≥4.5 contra blanco), PM10=medio, PM2.5=oscuro →
-        #         los tres aguantan letra blanca.
-        #   2026: Ozono=tono más oscuro (blanco OK), PM10=medio (blanco OK),
-        #         PM2.5=tono más claro (casi blanco, contraste <2) → usa el
-        #         color pleno del año en vez de blanco.
+        # El apilado va de suave (Ozono, índice 0) a fuerte (PM2.5, índice 2):
+        #   - 2025: la escala original va de oscuro a claro, así que se invierte.
+        #   - 2026: la escala original ya va de claro a oscuro, se usa tal cual.
+        # El Ozono se aclaró un poco más arriba con tinte para resaltar el
+        # degradado sin perder el tono del año.
+        'escalas_anio': [_escala_25, _escala_26],
+        # Color del texto de cada segmento, por año y por contaminante.
+        #   2025: Ozono=claro (texto COLOR_2025), PM10/PM2.5=blanco.
+        #   2026: Ozono=claro (texto COLOR_2026), PM10/PM2.5=blanco.
         'colores_texto_anio': [
             [
-                {'nombre': COLOR_2025,   'valor': COLOR_2025},       # Ozono – tono claro post-inversión
-                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},     # PM10  – tono medio  (contraste ≥ 4.9 ✓)
-                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},     # PM2.5 – tono oscuro (contraste ≥ 8.0 ✓)
+                {'nombre': COLOR_2025,   'valor': COLOR_2025},       # Ozono – tono claro
+                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},     # PM10  – tono medio
+                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},     # PM2.5 – tono oscuro
             ],
             [
-                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},     # Ozono – tono oscuro
+                {'nombre': COLOR_2026,   'valor': COLOR_2026},       # Ozono – tono claro
                 {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},     # PM10  – tono medio
-                {'nombre': COLOR_2026,   'valor': COLOR_2026},        # PM2.5 – tono claro
+                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},     # PM2.5 – tono oscuro
             ],
         ],
         'series': [
@@ -2409,7 +2414,8 @@ def _tabla_alertas(df: pd.DataFrame):
         es_emergencia = etiqueta.lower().startswith('emergencia')
 
         if es_total:
-            estilo = {'backgroundColor': COLOR_GRIS, 'color': '#ffffff'}
+            # Mismo fondo aqua diluido y color de letra que los KPI.
+            estilo = {**_KPI_PIE, 'color': COLOR_GRIS}
         elif es_emergencia:
             estilo = {'backgroundColor': '#FC3508', 'color': '#ffffff'}
         else:
@@ -2846,7 +2852,7 @@ def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
     return html.Div([
         html.Div([
             html.Div([
-                'Registro de Alertas y Emergencias Atmosféricas ',
+                'Registro de Eventos (Alertas y Emergencias) ',
                 html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
             ], id='bitacora-alertas-header',
                      className='bitacora-titulo',
@@ -2856,10 +2862,20 @@ def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
             _icono_descarga('btn-pdf-alertas'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
                   'marginBottom': '4px'}),
-        html.Div(
-            _tabla_paginada(df, 'tabla-bitacora-alertas', columna_color=col_fase, mapa_color=mapa_color,
-                            texto_claro_valores=('Emergencia',)),
-            className='bitacora-contenido'),
+        html.Div('Episodios derivados de eventos extraordinarios, como incendios u otras fuentes que pueden afectar la calidad del aire.'
+                'Decretados de acuerdo con el Programa de Reducción de Emisiones '
+                  'Contaminantes a la Atmósfera (PRECA) vigente.',
+                  style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
+        html.Div([
+            html.Div(
+                _tabla_paginada(df, 'tabla-bitacora-alertas', columna_color=col_fase, mapa_color=mapa_color,
+                                texto_claro_valores=('Emergencia',)),
+                style={'position': 'relative'}),
+            html.Div('Se muestran los últimos 10 registros, puedes descargar en el ícono de la '
+                      'parte superior derecha o avanzar con las flechas en la parte inferior izquierda.',
+                      style={'position': 'absolute', 'bottom': '12px', 'left': '10px',
+                             'color': COLOR_GRIS_MUTE, 'fontSize': '11px', 'zIndex': 2}),
+        ], className='bitacora-contenido'),
         dcc.Download(id='descarga-pdf-alertas'),
     ], id='bitacora-alertas-wrapper', className='bitacora-cerrada',
        style={**CARD_STYLE, 'position': 'relative', 'marginBottom': '20px'}), df
@@ -2895,7 +2911,7 @@ def _card_bitacora_episodios(df_episodios_2026_raw: pd.DataFrame):
     return html.Div([
         html.Div([
             html.Div([
-                'Registro de Episodios de Mala calidad del aire ',
+                'Registro de Episodios (Precontingencias y Contingencias) ',
                 html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
             ], id='bitacora-episodios-header',
                      className='bitacora-titulo',
@@ -2905,10 +2921,19 @@ def _card_bitacora_episodios(df_episodios_2026_raw: pd.DataFrame):
             _icono_descarga('btn-pdf-episodios'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
                   'marginBottom': '4px'}),
-        html.Div(
-            _tabla_paginada(df, 'tabla-bitacora-episodios', columna_color=col_evento, mapa_color=mapa_color,
-                            texto_claro_valores=texto_claro),
-            className='bitacora-contenido'),
+        html.Div('Decretados de acuerdo con el Programa de Reducción de Emisiones '
+                  'Contaminantes a la Atmósfera (PRECA) vigente.',
+                  style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
+        html.Div([
+            html.Div(
+                _tabla_paginada(df, 'tabla-bitacora-episodios', columna_color=col_evento, mapa_color=mapa_color,
+                                texto_claro_valores=texto_claro),
+                style={'position': 'relative'}),
+            html.Div('Se muestran los últimos 10 registros, puedes descargar en el ícono de la '
+                      'parte superior derecha o avanzar con las flechas en la parte inferior izquierda.',
+                      style={'position': 'absolute', 'bottom': '12px', 'left': '10px',
+                             'color': COLOR_GRIS_MUTE, 'fontSize': '11px', 'zIndex': 2}),
+        ], className='bitacora-contenido'),
         dcc.Download(id='descarga-pdf-episodios'),
     ], id='bitacora-episodios-wrapper', className='bitacora-cerrada',
        style={**CARD_STYLE, 'position': 'relative', 'marginBottom': '20px'}), df
@@ -3395,6 +3420,10 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
     #
     # La generación vive en numeralia.reporte.pdf: armar un PDF con fpdf2 no
     # tiene por qué estar anidado dentro de la función que construye la app.
+    _ruta_logo_simaj = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    NOMBRE_CARPETA_LOGOS, LOGO_SIMAJ)
+    _ruta_logo_semadet = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      NOMBRE_CARPETA_LOGOS, LOGO_SEMADET)
     registrar_descargas(app, [
         DescargaPDF(
             df=df_bitacora_alertas,
@@ -3404,6 +3433,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             archivo='Alertas_y_Emergencias_2026.pdf',
             boton_id='btn-pdf-alertas',
             descarga_id='descarga-pdf-alertas',
+            logo_izq=_ruta_logo_simaj,
+            logo_der=_ruta_logo_semadet,
         ),
         DescargaPDF(
             df=df_bitacora_episodios,
@@ -3413,6 +3444,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             archivo='Episodios_2026.pdf',
             boton_id='btn-pdf-episodios',
             descarga_id='descarga-pdf-episodios',
+            logo_izq=_ruta_logo_simaj,
+            logo_der=_ruta_logo_semadet,
         ),
     ])
 
@@ -3558,7 +3591,10 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                             value: v > 0 ? v : null,
                             itemStyle: {
                                 color: cfg.escalas_anio[j][i],
-                                borderColor: cfg.colores_anio[j]
+                                borderColor: cfg.colores_anio[j],
+                                // Ozono (índice 0) con opacidad un poco menor
+                                // para que se vea más clarito sin cambiar tonos.
+                                opacity: i === 0 ? 0.85 : 1
                             },
                             // El texto toma el color que le toca al tono de SU
                             // relleno, no al de la leyenda: en la misma gráfica
