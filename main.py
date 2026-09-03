@@ -2387,7 +2387,7 @@ def _datos_grafica_episodios(df: pd.DataFrame, col_2025: str, col_2026: str,
                 {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},   # PM2.5 – tono oscuro
             ],
             [
-                {'nombre': COLOR_GRIS_MUTE, 'valor': COLOR_GRIS_MUTE},  # Ozono – tono claro
+                {'nombre': COLOR_2026, 'valor': COLOR_2026},        # Ozono 2026 – tono claro
                 {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},   # PM10  – tono medio
                 {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},   # PM2.5 – tono oscuro
             ],
@@ -2559,6 +2559,22 @@ def _fecha_mes_abreviado(valor) -> str:
         return texto
 
 
+def _formatear_hora(hora) -> str:
+    """Deja la hora en formato H:MM a.m./p.m., sin segundos."""
+    s = str(hora).strip().replace('.', '').lower()
+    s = s.replace('p.m', ' PM').replace('a.m', ' AM')
+    s = s.replace('pm', ' PM').replace('am', ' AM')
+    for fmt in ('%I:%M:%S %p', '%I:%M %p', '%H:%M:%S', '%H:%M'):
+        try:
+            dt = datetime.strptime(s, fmt)
+            h12 = dt.hour % 12 or 12
+            ampm = 'a.m.' if dt.hour < 12 else 'p.m.'
+            return f"{h12}:{dt.minute:02d} {ampm}"
+        except ValueError:
+            pass
+    return str(hora)
+
+
 def _card_imeca(df_imeca: pd.DataFrame):
     d = df_imeca.set_index(df_imeca.columns[0])
 
@@ -2595,7 +2611,7 @@ def _card_imeca(df_imeca: pd.DataFrame):
                               html.B(_fecha_mes_abreviado(_get(anio, 'Fecha')),
                                      style={'color': '#173d4c'})]),
                     html.Div([html.Span('Hora  ', style={'color': COLOR_GRIS_MUTE}),
-                              html.B(_get(anio, 'Hora'), style={'color': '#173d4c'})]),
+                              html.B(_formatear_hora(_get(anio, 'Hora')), style={'color': '#173d4c'})]),
                 ], style={'fontSize': '14px', 'display': 'grid', 'gap': '4px',
                           'alignContent': 'center'}),
             ], style={'display': 'flex', 'flexDirection': 'row', 'alignItems': 'center'}),
@@ -2904,8 +2920,7 @@ def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
             _icono_descarga('btn-pdf-alertas'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
                   'marginBottom': '4px'}),
-        html.Div('Episodios derivados de eventos extraordinarios, como incendios u otras fuentes que pueden afectar la calidad del aire.'
-                'Decretados de acuerdo con el Programa de Reducción de Emisiones '
+        html.Div('Eventos extraordinarios decretados de acuerdo con el Programa de Reducción de Emisiones '
                   'Contaminantes a la Atmósfera (PRECA) vigente.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
@@ -2963,7 +2978,7 @@ def _card_bitacora_episodios(df_episodios_2026_raw: pd.DataFrame):
             _icono_descarga('btn-pdf-episodios'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
                   'marginBottom': '4px'}),
-        html.Div('Decretados de acuerdo con el Programa de Reducción de Emisiones '
+        html.Div('Episodios decretados de acuerdo con el Programa de Reducción de Emisiones '
                   'Contaminantes a la Atmósfera (PRECA) vigente.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
@@ -3116,7 +3131,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             '-',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
         ], style={'color': '#173d4c', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
-        html.Div('Episodios activados a partir de las mediciones registradas en las estaciones del SIMAJ.',
+        html.Div('Episodios decretados de acuerdo con el Programa de Reducción de Emisiones Contaminantes a la Atmósfera (PRECA) vigente.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
             html.Div([_tabla_episodios(df_episodios)],
@@ -3129,11 +3144,11 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 # izquierda (~450 px), para que las dos mitades del bloque
                 # terminen a la misma altura en vez de dejar un hueco.
                 html.Div(id='echart-precontingencias',
-                         style={'flex': '1', 'minWidth': '300px', 'height': ALTO_GRAFICA_EPISODIOS}),
+                         style={'flex': '1', 'minWidth': '340px', 'height': ALTO_GRAFICA_EPISODIOS}),
                 html.Div(id='echart-contingencias-f1',
-                         style={'flex': '1', 'minWidth': '300px', 'height': ALTO_GRAFICA_EPISODIOS}),
-            ], className='fila-apilable', style={'flex': '1 1 400px', 'minWidth': '610px',
-                      'display': 'flex', 'gap': '10px', 'alignItems': 'stretch'}),
+                         style={'flex': '1', 'minWidth': '340px', 'height': ALTO_GRAFICA_EPISODIOS}),
+            ], className='fila-apilable', style={'flex': '1 1 400px', 'minWidth': '690px',
+                      'display': 'flex', 'gap': '6px', 'alignItems': 'stretch'}),
         ], className='fila-apilable', style={'display': 'flex', 'gap': '20px', 'flexWrap': 'wrap',
                   'alignItems': 'stretch'}),
 
@@ -3262,7 +3277,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             " por estación: ",
             html.Span("aqua", style={'color': COLOR_2026, 'fontWeight': '700'}),
             " = tuvo más días de buena calidad que el año pasado (mejora), ",
-            html.Span("azul marino", style={'color': COLOR_2025, 'fontWeight': '700'}),
+            html.Span("gris", style={'color': COLOR_2025, 'fontWeight': '700'}),
             " = tuvo menos (empeora); entre más grande la burbuja, mayor el cambio. "
             "Pasa el cursor sobre una estación para ver el comparativo completo en el panel de la derecha.",
         ], style={'color': COLOR_MUTED, 'fontSize': '14px', 'marginTop': '14px', 'marginBottom': '0'}),
@@ -3478,8 +3493,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         DescargaPDF(
             df=df_bitacora_alertas,
             titulo='Alertas y Emergencias Atmosféricas 2026',
-            subtitulo='Episodios derivados de eventos extraordinarios, como incendios '
-                      'u otras fuentes que pueden afectar la calidad del aire.',
+            subtitulo='Eventos extraordinarios decretados de acuerdo con el Programa de Reducción de Emisiones Contaminantes a la Atmósfera (PRECA) vigente.\nCORTE AL ' + _fecha_encabezado(),
             archivo='Alertas_y_Emergencias_2026.pdf',
             boton_id='btn-pdf-alertas',
             descarga_id='descarga-pdf-alertas',
@@ -3488,10 +3502,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         ),
         DescargaPDF(
             df=df_bitacora_episodios,
-            titulo='Episodios de Mala calidad del aire 2026',
-            subtitulo='Episodios activados a partir de las mediciones registradas '
-                      'en las estaciones del SIMAJ.',
-            archivo='Episodios_2026.pdf',
+            titulo='Episodios de Mala calidad del aire',
+            subtitulo='Episodios decretados de acuerdo con el Programa de Reducción de Emisiones Contaminantes a la Atmósfera (PRECA) vigente.\nCORTE AL ' + _fecha_encabezado(),
+            archivo='Episodios.pdf',
             boton_id='btn-pdf-episodios',
             descarga_id='descarga-pdf-episodios',
             logo_izq=_ruta_logo_simaj,
@@ -3543,9 +3556,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 // Todas las medidas que cambian entre los dos modos, juntas
                 // para poder compararlas de un golpe de vista.
                 const med = compacta
-                    ? {nombre: 10, valor: 13, salto: 12, total: 14, distancia: 16,
+                    ? {nombre: 11, valor: 14, salto: 12, total: 14, distancia: 16,
                        titulo: 13, eje: 12, gridArriba: 40, gridAbajo: 22}
-                    : {nombre: 9, valor: 13, salto: 10, total: 17, distancia: 22,
+                    : {nombre: 10, valor: 14, salto: 10, total: 17, distancia: 22,
                        titulo: 15, eje: 14, gridArriba: 64, gridAbajo: 28};
 
                 // El eje lo fija el año con más episodios, así que un
@@ -3581,9 +3594,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                             position: 'inside',
                             formatter: function (p) {
                                 if (!p.value) { return ''; }
-                                // Siempre muestra nombre y valor; hideOverlap
-                                // evita que se encimen si la barra es muy pequeña.
-                                return '{n|' + s.nombre + '}\\n{v|' + p.value + '}';
+                                // Nombre y valor en una sola línea para evitar
+                                // amontonamiento en segmentos pequeños.
+                                return '{n|' + s.nombre + ':}{v| ' + p.value + '}';
                             },
                             // El color del texto lo decide el tono del relleno,
                             // que depende del año y del contaminante: hay tonos

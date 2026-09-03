@@ -89,13 +89,13 @@ class TestDatosGraficaEpisodios:
         for entrada in datos_grafica["colores_texto_anio"][0][1:]:
             assert entrada == {"nombre": COLOR_BLANCO, "valor": COLOR_BLANCO}
 
-    def test_el_ozono_del_anio_actual_usa_color_gris_mute(self, datos_grafica):
+    def test_el_ozono_del_anio_actual_usa_color_2026(self, datos_grafica):
         # Ozono ocupa el tono más claro (índice 0), igual que las Alertas.
-        # El texto va en COLOR_GRIS_MUTE, igual que el texto de Alertas.
+        # El texto del año en curso va en COLOR_2026.
         ozono = datos_grafica["series"][0]["nombre"]
         assert ozono == "Ozono"
         assert datos_grafica["colores_texto_anio"][1][0] == {
-            "nombre": COLOR_GRIS_MUTE, "valor": COLOR_GRIS_MUTE}
+            "nombre": COLOR_2026, "valor": COLOR_2026}
 
     def test_el_resto_del_anio_actual_va_en_blanco(self, datos_grafica):
         # PM10 (índice 1) y PM2.5 (índice 2) tienen fondos medios/oscuros

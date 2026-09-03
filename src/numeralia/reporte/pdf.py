@@ -147,6 +147,11 @@ def generar_pdf_tabla(df: pd.DataFrame, titulo: str, subtitulo: str = '',
             pdf.image(logo_der, x=pdf.w - pdf.r_margin - ancho,
                       y=pdf.t_margin, h=ALTO_LOGO_PDF)
 
+    # Deja un pequeño respiro entre los logos y el título/subtítulo.
+    y_inicio_titulo = (pdf.t_margin + ALTO_LOGO_PDF + 3
+                       if (logo_izq or logo_der) else pdf.t_margin)
+    pdf.set_y(y_inicio_titulo)
+
     pdf.set_font('Helvetica', 'B', 14)
     pdf.set_text_color(*hex_a_rgb(COLOR_GRIS))
     pdf.cell(0, 10, _sin_acentos_latin1(titulo), align='C',
