@@ -1651,7 +1651,7 @@ def _encabezado_reporte():
             html.Div([
                 html.H1('Reporte Diario de Calidad del Aire', className='titulo-reporte', style={
                     'margin': '0', 'fontSize': '32px', 'fontWeight': '600',
-                    'color': COLOR_GRIS, 'textAlign': 'center', 'lineHeight': '1.15',
+                    'color': '#006f68', 'textAlign': 'center', 'lineHeight': '1.15',
                 }),
                 html.Div(_fecha_encabezado(), className='fecha-reporte', style={
                     'color': COLOR_2026, 'fontSize': '20px', 'fontWeight': '600',
@@ -1916,7 +1916,7 @@ def _card_serie_mensual_2025(df_resumen: pd.DataFrame):
             html.Span('2025', style={'color': COLOR_2025, 'fontWeight': '800'}),
             '-',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
-        ], style={'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
+        ], style={'color': '#006f68', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div([
             f'Acumulado mensual de días en los que la calidad del aire fue buena o aceptable según '
             f'el Índice Aire y Salud (NOM-172-SEMARNAT-2023), considerando el valor más alto '
@@ -2074,11 +2074,11 @@ def _kpi_total(etiqueta: str, valor):
     """
     return html.Div([
         html.Span(etiqueta, style={
-            'color': COLOR_GRIS, 'fontSize': '15px', 'fontWeight': '700',
+            'color': '#006f68', 'fontSize': '15px', 'fontWeight': '700',
             'textTransform': 'uppercase', 'letterSpacing': '0.04em',
         }),
         html.Span(str(valor), style={
-            'color': COLOR_GRIS, 'fontWeight': '800', 'fontSize': '32px', 'lineHeight': '1',
+            'color': '#006f68', 'fontWeight': '800', 'fontSize': '32px', 'lineHeight': '1',
         }),
     ], style={**_KPI_PIE, 'display': 'flex', 'justifyContent': 'space-between',
               'alignItems': 'center', 'gap': '12px'})
@@ -2274,7 +2274,7 @@ def _tabla_episodios(df: pd.DataFrame):
 
     # Fila de totales: mismo fondo aqua diluido y color de letra que los KPI.
     if fila_totales is not None:
-        base_tot = {**_KPI_PIE, 'color': COLOR_GRIS}
+        base_tot = {**_KPI_PIE, 'color': '#006f68'}
         tbodies.append(html.Tbody([html.Tr([
             html.Td(str(fila_totales[col_label]).strip(), style=_lbl(base_tot)),
             html.Td(fila_totales[col_2025], style={**_num(base_tot), 'fontWeight': '800'}),
@@ -2282,7 +2282,7 @@ def _tabla_episodios(df: pd.DataFrame):
         ])]))
 
     encabezado = html.Thead(html.Tr([
-        html.Th('Episodios activados', style={'backgroundColor': COLOR_GRIS, 'color': '#fff',
+        html.Th('Episodios activados', style={'backgroundColor': '#e8edef', 'color': '#006f68',
                                                'padding': '10px 14px', 'textAlign': 'left'}),
         html.Th('2025', style={'backgroundColor': COLOR_2025, 'color': '#fff', 'padding': '10px 14px'}),
         html.Th('2026', style={'backgroundColor': COLOR_2026, 'color': '#fff', 'padding': '10px 14px'}),
@@ -2415,7 +2415,7 @@ def _tabla_alertas(df: pd.DataFrame):
 
         if es_total:
             # Mismo fondo aqua diluido y color de letra que los KPI.
-            estilo = {**_KPI_PIE, 'color': COLOR_GRIS}
+            estilo = {**_KPI_PIE, 'color': '#006f68'}
         elif es_emergencia:
             estilo = {'backgroundColor': '#FC3508', 'color': '#ffffff'}
         else:
@@ -2431,7 +2431,7 @@ def _tabla_alertas(df: pd.DataFrame):
         ]))
 
     encabezado = html.Tr([
-        html.Th('Categoría', style={'backgroundColor': COLOR_GRIS, 'color': '#fff',
+        html.Th('Categoría', style={'backgroundColor': '#e8edef', 'color': '#006f68',
                                      'padding': '10px 14px', 'textAlign': 'left'}),
         html.Th('2025', style={'backgroundColor': COLOR_2025, 'color': '#fff', 'padding': '10px 14px'}),
         html.Th('2026', style={'backgroundColor': COLOR_2026, 'color': '#fff', 'padding': '10px 14px'}),
@@ -2442,6 +2442,49 @@ def _tabla_alertas(df: pd.DataFrame):
                     style={'width': '100%', 'borderCollapse': 'collapse'}),
         className='tabla-scroll',
         style={'borderRadius': '10px', 'overflow': 'hidden', 'border': f'1px solid {COLOR_GRIS_100}'}
+    )
+
+
+def _tabla_parametros():
+    """Tabla de parámetros medidos por el SIMAJ."""
+    parametros = [
+        (html.Span(['O', html.Sub('3')], style={'fontWeight': '700'}), 'Ozono'),
+        (html.Span(['N', 'O', html.Sub('2')], style={'fontWeight': '700'}), 'Óxidos de nitrógeno'),
+        (html.Span(['S', 'O', html.Sub('2')], style={'fontWeight': '700'}), 'Bióxido de Azufre'),
+        (html.Span(['C', 'O'], style={'fontWeight': '700'}), 'Monóxido de carbono'),
+        (html.Span(['P', 'M', html.Sub('10')], style={'fontWeight': '700'}), 'Partículas menores a 10 micrómetros'),
+        (html.Span(['P', 'M', html.Sub('2.5')], style={'fontWeight': '700'}), 'Partículas menores a 2.5 micrómetros'),
+    ]
+    filas = [
+        html.Tr([
+            html.Td(formula, style={
+                'padding': '8px 12px', 'textAlign': 'center',
+                'borderBottom': f'1px solid {COLOR_GRIS_100}',
+                'color': COLOR_GRIS, 'fontSize': '13px',
+            }),
+            html.Td(desc, style={
+                'padding': '8px 12px', 'textAlign': 'left',
+                'borderBottom': f'1px solid {COLOR_GRIS_100}',
+                'color': COLOR_GRIS_MUTE, 'fontSize': '13px',
+            }),
+        ])
+        for formula, desc in parametros
+    ]
+    encabezado = html.Thead(html.Tr([
+        html.Th('Parámetros', colSpan=2, style={
+            'backgroundColor': '#e8edef', 'color': '#006f68',
+            'padding': '8px 12px', 'textAlign': 'center',
+            'fontWeight': '700', 'fontSize': '13px',
+        }),
+    ]))
+    return html.Div(
+        html.Table([encabezado, html.Tbody(filas)],
+                   style={'width': '100%', 'borderCollapse': 'collapse'}),
+        style={
+            'borderRadius': '10px', 'overflow': 'hidden',
+            'border': f'1px solid {COLOR_GRIS_100}',
+            'maxWidth': '500px', 'margin': '0 auto',
+        }
     )
 
 
@@ -2546,14 +2589,14 @@ def _card_imeca(df_imeca: pd.DataFrame):
                 # Columna derecha: metadata
                 html.Div([
                     html.Div([html.Span('Contaminante  ', style={'color': COLOR_GRIS_MUTE}),
-                              html.B(_get(anio, 'Contaminante'), style={'color': COLOR_GRIS})]),
+                              html.B(_get(anio, 'Contaminante'), style={'color': '#006f68'})]),
                     html.Div([html.Span('Estación  ', style={'color': COLOR_GRIS_MUTE}),
-                              html.B(_get(anio, 'Estación'), style={'color': COLOR_GRIS})]),
+                              html.B(_get(anio, 'Estación'), style={'color': '#006f68'})]),
                     html.Div([html.Span('Fecha  ', style={'color': COLOR_GRIS_MUTE}),
                               html.B(_fecha_mes_abreviado(_get(anio, 'Fecha')),
-                                     style={'color': COLOR_GRIS})]),
+                                     style={'color': '#006f68'})]),
                     html.Div([html.Span('Hora  ', style={'color': COLOR_GRIS_MUTE}),
-                              html.B(_get(anio, 'Hora'), style={'color': COLOR_GRIS})]),
+                              html.B(_get(anio, 'Hora'), style={'color': '#006f68'})]),
                 ], style={'fontSize': '14px', 'display': 'grid', 'gap': '4px',
                           'alignContent': 'center'}),
             ], style={'display': 'flex', 'flexDirection': 'row', 'alignItems': 'center'}),
@@ -2561,7 +2604,7 @@ def _card_imeca(df_imeca: pd.DataFrame):
                   'borderLeft': f'4px solid {color}', '--color-acento': color})
 
     return html.Div([
-        html.Div('IMECA Máximo Registrado', style={'color': COLOR_GRIS, 'fontWeight': '700',
+        html.Div('IMECA Máximo Registrado', style={'color': '#006f68', 'fontWeight': '700',
                                                      'fontSize': '17px', 'marginBottom': '4px'}),
         html.Div('Valor más alto del índice en el año, por contaminante y estación.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '14px', 'marginBottom': '12px'}),
@@ -2819,10 +2862,10 @@ def _tabla_paginada(df: pd.DataFrame, id_tabla: str, columna_color: str = None,
         page_size=10,
         sort_action='native',
         style_table={'overflowX': 'auto'},
-        style_header={'backgroundColor': COLOR_GRIS, 'color': '#ffffff', 'fontWeight': '700',
+        style_header={'backgroundColor': '#e8edef', 'color': '#006f68', 'fontWeight': '700',
                       'textAlign': 'left', 'padding': '8px 10px', 'border': 'none'},
         style_cell={'padding': '8px 10px', 'fontFamily': 'Inter, Segoe UI, sans-serif', 'fontSize': '15px',
-                    'color': COLOR_GRIS, 'textAlign': 'left', 'minWidth': '90px', 'maxWidth': '240px',
+                    'color': COLOR_GRIS_MUTE, 'textAlign': 'left', 'minWidth': '90px', 'maxWidth': '240px',
                     'overflow': 'hidden', 'textOverflow': 'ellipsis', 'border': f'1px solid {COLOR_GRIS_100}'},
         style_data_conditional=style_data_conditional,
         style_as_list_view=True,
@@ -2857,7 +2900,7 @@ def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
             ], id='bitacora-alertas-header',
                      className='bitacora-titulo',
                      n_clicks=0,
-                     style={'flex': '1', 'color': COLOR_GRIS, 'fontWeight': '700',
+                     style={'flex': '1', 'color': '#006f68', 'fontWeight': '700',
                             'fontSize': '18px'}),
             _icono_descarga('btn-pdf-alertas'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
@@ -2916,7 +2959,7 @@ def _card_bitacora_episodios(df_episodios_2026_raw: pd.DataFrame):
             ], id='bitacora-episodios-header',
                      className='bitacora-titulo',
                      n_clicks=0,
-                     style={'flex': '1', 'color': COLOR_GRIS, 'fontWeight': '700',
+                     style={'flex': '1', 'color': '#006f68', 'fontWeight': '700',
                             'fontSize': '18px'}),
             _icono_descarga('btn-pdf-episodios'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
@@ -3073,7 +3116,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             html.Span('2025', style={'color': COLOR_2025, 'fontWeight': '800'}),
             '-',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
-        ], style={'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
+        ], style={'color': '#006f68', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div('Episodios activados a partir de las mediciones registradas en las estaciones del SIMAJ.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
@@ -3111,7 +3154,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             html.Span('2025', style={'color': COLOR_2025, 'fontWeight': '800'}),
             '-',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
-        ], style={'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
+        ], style={'color': '#006f68', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div('Episodios derivados de eventos extraordinarios, como incendios u otras fuentes '
                   'que pueden afectar la calidad del aire.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
@@ -3171,7 +3214,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             ' vs ',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
             ' por estación de monitoreo',
-        ], style={'color': COLOR_GRIS, 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
+        ], style={'color': '#006f68', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div([
             html.Div([
                 dcc.Graph(id='mapa-grafico', figure=fig_mapa,
@@ -3202,7 +3245,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 # ser lo mismo y el panel se veía desalineado.
                 html.Div([
                     html.Div('Detalle por estación', style={
-                        'color': COLOR_GRIS, 'fontWeight': '700',
+                        'color': '#006f68', 'fontWeight': '700',
                         'fontSize': '16px', 'marginBottom': '4px'}),
                     html.Div('Categoría acorde con el Índice Aire y Salud de la NOM-172-SEMARNAT-2023',
                              style={'color': COLOR_GRIS_MUTE, 'fontSize': '13px',
@@ -3228,6 +3271,10 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
     bitacora_alertas_card, df_bitacora_alertas = _card_bitacora_alertas(df_alertas_2026_raw)
     bitacora_episodios_card, df_bitacora_episodios = _card_bitacora_episodios(df_episodios_2026_raw)
+
+    parametros_card = html.Div(
+        _tabla_parametros(),
+        style={**CARD_STYLE, 'marginBottom': '20px'})
 
     # El meta 'viewport' es lo que hace que un teléfono renderice a su ancho
     # real. Sin él asume 980px y luego encoge la página entera, así que el
@@ -3336,6 +3383,10 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             bitacora_episodios_card,
             bitacora_alertas_card,
         ], id='pdf-pagina-3'),
+
+        html.Div([
+            parametros_card,
+        ], id='pdf-pagina-4'),
     ], className='lienzo-reporte', style={
         'backgroundColor': COLOR_BG,
         'minHeight': '100vh',
@@ -4321,7 +4372,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 // su contenido (ver abajo) y eso hay que conocerlo desde la
                 // primera página, no solo desde la segunda en adelante.
                 const lienzos = [];
-                for (const idPag of ['pdf-pagina-1', 'pdf-pagina-2', 'pdf-pagina-3']) {
+                for (const idPag of ['pdf-pagina-1', 'pdf-pagina-2', 'pdf-pagina-3', 'pdf-pagina-4']) {
                     const bloque = document.getElementById(idPag);
                     if (!bloque) { continue; }
                     lienzos.push(await html2canvas(bloque, {
