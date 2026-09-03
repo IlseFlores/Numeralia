@@ -16,6 +16,7 @@ from numeralia.reporte.tema import (
     COLOR_2025,
     COLOR_2026,
     COLOR_BLANCO,
+    COLOR_GRIS_MUTE,
     ESCALA_EPISODIOS_ANIO_ACTUAL,
     ESCALA_EPISODIOS_ANIO_PREVIO,
 )
@@ -76,11 +77,11 @@ class TestDatosGraficaEpisodios:
             for entrada in por_anio:
                 assert set(entrada) == {"nombre", "valor"}
 
-    def test_el_ozono_del_anio_previo_va_en_el_color_del_anio(self, datos_grafica):
-        # Con la escala invertida, Ozono ocupa el tono más claro (índice 0).
-        # Mismo patrón que PM2.5 en 2026: el color pleno del año como texto.
+    def test_el_ozono_del_anio_previo_usa_color_gris_mute(self, datos_grafica):
+        # El Ozono usa el tono claro de Alertas; el texto va en COLOR_GRIS_MUTE,
+        # el mismo tono que usa el texto de Alertas en la gráfica de abajo.
         assert datos_grafica["colores_texto_anio"][0][0] == {
-            "nombre": COLOR_2025, "valor": COLOR_2025}
+            "nombre": COLOR_GRIS_MUTE, "valor": COLOR_GRIS_MUTE}
 
     def test_el_pm10_y_pm25_del_anio_previo_van_en_blanco(self, datos_grafica):
         # PM10 (índice 1) y PM2.5 (índice 2) tienen fondos medios/oscuros
@@ -88,13 +89,13 @@ class TestDatosGraficaEpisodios:
         for entrada in datos_grafica["colores_texto_anio"][0][1:]:
             assert entrada == {"nombre": COLOR_BLANCO, "valor": COLOR_BLANCO}
 
-    def test_el_ozono_del_anio_actual_va_en_el_color_del_anio(self, datos_grafica):
-        # Ozono ocupa el tono más claro (índice 0). El blanco desaparecería
-        # encima de ese tono casi blanco, así que va en el color pleno del año.
+    def test_el_ozono_del_anio_actual_usa_color_gris_mute(self, datos_grafica):
+        # Ozono ocupa el tono más claro (índice 0), igual que las Alertas.
+        # El texto va en COLOR_GRIS_MUTE, igual que el texto de Alertas.
         ozono = datos_grafica["series"][0]["nombre"]
         assert ozono == "Ozono"
         assert datos_grafica["colores_texto_anio"][1][0] == {
-            "nombre": COLOR_2026, "valor": COLOR_2026}
+            "nombre": COLOR_GRIS_MUTE, "valor": COLOR_GRIS_MUTE}
 
     def test_el_resto_del_anio_actual_va_en_blanco(self, datos_grafica):
         # PM10 (índice 1) y PM2.5 (índice 2) tienen fondos medios/oscuros
