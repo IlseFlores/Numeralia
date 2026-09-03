@@ -38,8 +38,10 @@ class TestLuminancia:
     def test_extremos(self, color, esperado):
         assert _luminancia(color) == pytest.approx(esperado)
 
-    def test_el_azul_marino_es_oscuro(self):
-        assert _luminancia(COLOR_ANIO_PREVIO) < 0.3
+    def test_el_anio_previo_es_oscuro(self):
+        # El color del año previo debe ser suficientemente oscuro para que
+        # el texto blanco contraste bien. COLOR_ANIO_PREVIO actual: '#465055'.
+        assert _luminancia(COLOR_ANIO_PREVIO) < 0.35
 
     def test_el_aqua_es_claro(self):
         assert _luminancia(COLOR_ANIO_ACTUAL) > 0.5

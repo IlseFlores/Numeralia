@@ -186,7 +186,8 @@ class TestColoresDelTema:
     def test_el_pdf_usa_los_colores_del_tema(self):
         # Regresión: el gris tenue iba escrito como (138, 144, 150) dentro del
         # PDF, así que cuando el tema cambió de tono el PDF se quedó atrás.
-        assert hex_a_rgb(COLOR_GRIS) == (70, 80, 85)
+        # COLOR_GRIS actual: '#999d9e' = (153, 157, 158)
+        assert hex_a_rgb(COLOR_GRIS) == (153, 157, 158)
         assert hex_a_rgb(COLOR_GRIS_MUTE) != (138, 144, 150)
 
 

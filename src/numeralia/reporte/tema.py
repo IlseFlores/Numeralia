@@ -26,14 +26,18 @@ COLOR_BLANCO = '#ffffff'   # rótulos encima de un relleno oscuro
 
 # ── Paleta de marca ─────────────────────────────────────────────────────────
 # Solo estos 3 colores; el resto son tintes/sombras derivados de ellos.
-COLOR_GRIS         = '#465055'   # neutro / estructura
-COLOR_ANIO_PREVIO  = '#191970'   # azul marino — año contra el que se compara
+COLOR_GRIS         = '#999d9e'   # neutro / estructura
+COLOR_ANIO_PREVIO  = '#465055'   # azul marino — año contra el que se compara 191970
 COLOR_ANIO_ACTUAL  = '#4DC2B3'   # aqua/teal — año que se reporta
 
 # Alias históricos. Se conservan mientras el dashboard siga nombrando los años
 # a mano; al migrar la sección de reporte deben desaparecer.
 COLOR_2025 = COLOR_ANIO_PREVIO
 COLOR_2026 = COLOR_ANIO_ACTUAL
+
+# Color para títulos de tarjetas y secciones. Inicialmente igual al del
+# año previo; se expone aparte para poder cambiarlo sin afectar los gráficos.
+COLOR_TITULOS = '#465055'
 
 COLOR_GOOD = COLOR_ANIO_ACTUAL  # mapa: mejora (menos días de mala calidad)
 COLOR_BAD  = COLOR_ANIO_PREVIO  # mapa: empeora (más días de mala calidad)
@@ -161,8 +165,8 @@ ESCALA_EPISODIOS_ANIO_ACTUAL = escala_serie(COLOR_ANIO_ACTUAL, luminancia_minima
 SEVERIDAD_TINTES = {
     1: '#FFB300',   # Precontingencia atmosférica
     2: '#EF6C00',   # Contingencia atmosférica Fase I
-    3: '#e30202',   # Contingencia atmosférica Fase II
-    4: '#4B0082',   # Contingencia atmosférica Fase III
+    3: '#FC3508',   # Contingencia atmosférica Fase II
+    4: '#3d0082',   # Contingencia atmosférica Fase III
 }
 
 # ── Plotly ──────────────────────────────────────────────────────────────────

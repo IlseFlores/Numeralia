@@ -13,6 +13,7 @@ import pandas as pd
 import pytest
 
 from numeralia.reporte.tema import (
+    COLOR_2025,
     COLOR_2026,
     COLOR_BLANCO,
     ESCALA_EPISODIOS_ANIO_ACTUAL,
@@ -75,21 +76,29 @@ class TestDatosGraficaEpisodios:
             for entrada in por_anio:
                 assert set(entrada) == {"nombre", "valor"}
 
-    def test_el_anio_previo_va_todo_en_blanco(self, datos_grafica):
-        # Su escala arranca en el azul marino pleno: los tres tonos son
-        # oscuros y piden letra blanca.
-        for entrada in datos_grafica["colores_texto_anio"][0]:
+    def test_el_ozono_del_anio_previo_va_en_el_color_del_anio(self, datos_grafica):
+        # Con la escala invertida, Ozono ocupa el tono más claro (índice 0).
+        # Mismo patrón que PM2.5 en 2026: el color pleno del año como texto.
+        assert datos_grafica["colores_texto_anio"][0][0] == {
+            "nombre": COLOR_2025, "valor": COLOR_2025}
+
+    def test_el_pm10_y_pm25_del_anio_previo_van_en_blanco(self, datos_grafica):
+        # PM10 (índice 1) y PM2.5 (índice 2) tienen fondos medios/oscuros
+        # y aguantan letra blanca.
+        for entrada in datos_grafica["colores_texto_anio"][0][1:]:
             assert entrada == {"nombre": COLOR_BLANCO, "valor": COLOR_BLANCO}
 
     def test_el_ozono_del_anio_actual_va_en_el_color_del_anio(self, datos_grafica):
-        # Decisión de identidad visual: su relleno es el tono más claro de la
-        # escala y el blanco desaparecería encima.
+        # Ozono ocupa el tono más claro (índice 0). El blanco desaparecería
+        # encima de ese tono casi blanco, así que va en el color pleno del año.
         ozono = datos_grafica["series"][0]["nombre"]
         assert ozono == "Ozono"
         assert datos_grafica["colores_texto_anio"][1][0] == {
             "nombre": COLOR_2026, "valor": COLOR_2026}
 
     def test_el_resto_del_anio_actual_va_en_blanco(self, datos_grafica):
+        # PM10 (índice 1) y PM2.5 (índice 2) tienen fondos medios/oscuros
+        # y aguantan letra blanca.
         for entrada in datos_grafica["colores_texto_anio"][1][1:]:
             assert entrada == {"nombre": COLOR_BLANCO, "valor": COLOR_BLANCO}
 
@@ -146,10 +155,11 @@ class TestLegibilidadEpisodios:
     patas.
     """
 
-    def test_el_blanco_se_lee_en_los_tres_tonos_del_anio_previo(self):
-        # Mínimo AA para texto normal. Era 3.2 en el tono más claro cuando el
-        # piso de la escala estaba en 0.5.
-        for tono in ESCALA_EPISODIOS_ANIO_PREVIO:
+    def test_el_blanco_se_lee_en_los_tonos_con_letra_blanca_del_anio_previo(self):
+        # Ozono (índice 2) usa el color pleno del año (no blanco), así que solo
+        # se verifica el contraste de PM2.5 (índice 0) y PM10 (índice 1).
+        # Ambos tienen contraste ≥ 4.5 con el color de fondo actual (#465055).
+        for tono in ESCALA_EPISODIOS_ANIO_PREVIO[:2]:
             assert _contraste(COLOR_BLANCO, tono) >= 4.5
 
     def test_los_tonos_del_anio_previo_se_distinguen_entre_si(self):
@@ -185,9 +195,10 @@ def figura_mensual():
 
 class TestFiguraSerieMensual:
     def test_hay_una_pastilla_y_una_anotacion_por_dato(self, figura_mensual):
-        # 12 meses de 2025 + 7 de 2026.
-        assert len(figura_mensual.layout.shapes) == 19
-        assert len(figura_mensual.layout.annotations) == 19
+        # El eje llega solo hasta el último mes con dato de 2026 (7 en el
+        # fixture por defecto), así que ambos años tienen 7 puntos: 7+7=14.
+        assert len(figura_mensual.layout.shapes) == 14
+        assert len(figura_mensual.layout.annotations) == 14
 
     def test_las_pastillas_y_los_numeros_van_parejos(self, figura_mensual):
         assert len(figura_mensual.layout.shapes) == len(figura_mensual.layout.annotations)
@@ -223,8 +234,10 @@ class TestFiguraSerieMensual:
         vacia = original._fig_serie_buena_mensual(pd.DataFrame({"A": [1], "B": [2]}))
         assert vacia.layout.height is None
 
-    def test_el_eje_lleva_los_doce_meses(self, figura_mensual):
-        assert len(figura_mensual.layout.xaxis.categoryarray) == 12
+    def test_el_eje_llega_al_ultimo_mes_de_2026(self, figura_mensual):
+        # El eje ya no muestra los 12 meses fijos: se extiende hasta el último
+        # mes con dato en 2026. El fixture por defecto tiene 7 meses de 2026.
+        assert len(figura_mensual.layout.xaxis.categoryarray) == 7
 
 
 class TestGeometriaPastillas:
@@ -236,10 +249,15 @@ class TestGeometriaPastillas:
     Estos tests derivan el ancho de la figura REAL, no de una constante
     copiada: si alguien cambia ANCHO_PASTILLA, el umbral del JS queda mal y
     aquí se ve.
+
+    La fórmula del umbral es: C ≥ 75 × N + 80, donde N = número de meses
+    en el eje (len categoryarray). El JS la calcula dinámicamente. Con el
+    fixture de 7 meses: UMBRAL = 75 × 7 + 80 = 605.
     """
 
-    # Los mismos valores que documenta el JS del callback.
-    UMBRAL_JS = 980      # ancho de contenedor a partir del cual se conserva
+    # El JS calcula este valor dinámicamente (75 × N + 80).
+    # Con el fixture de 7 meses: 75 × 7 + 80 = 605.
+    UMBRAL_JS = 605
     MINIMO_LEGIBLE = 18  # px que pide un número de dos dígitos a 13px
 
     def _ancho_pastilla_px(self, figura, ancho_contenedor: float) -> float:
@@ -256,19 +274,21 @@ class TestGeometriaPastillas:
         assert self._ancho_pastilla_px(
             figura_mensual, self.UMBRAL_JS) >= self.MINIMO_LEGIBLE
 
-    def test_en_un_ipad_vertical_no_lo_es(self, figura_mensual):
-        # ~700px de contenedor: es el caso que el umbral de 768 dejaba fuera.
-        assert self._ancho_pastilla_px(figura_mensual, 700) < self.MINIMO_LEGIBLE
+    def test_en_pantalla_angosta_no_caben(self, figura_mensual):
+        # Con 7 meses, el umbral es ~605px. Por debajo (ej. 550px) la pastilla
+        # ya no cabe (0.24 × 470 / 7 ≈ 16px < 18px).
+        assert self._ancho_pastilla_px(figura_mensual, 550) < self.MINIMO_LEGIBLE
 
     def test_en_un_celular_es_diminuta(self, figura_mensual):
-        assert self._ancho_pastilla_px(figura_mensual, 330) < 8
+        # A 300px: 0.24 × 220 / 7 ≈ 7.5px < 8px
+        assert self._ancho_pastilla_px(figura_mensual, 300) < 8
 
     def test_en_escritorio_es_holgada(self, figura_mensual):
         assert self._ancho_pastilla_px(figura_mensual, 1170) >= 20
 
     def test_el_umbral_esta_justo_donde_deja_de_ser_legible(self, figura_mensual):
-        # Un poco más angosto que el umbral y ya no cabe: confirma que el 980
-        # no está puesto de más ni de menos.
+        # 60px por debajo del umbral (605 − 60 = 545): la pastilla ya no cabe.
+        # 0.24 × (545 − 80) / 7 ≈ 15.9px < 18px.
         assert self._ancho_pastilla_px(
             figura_mensual, self.UMBRAL_JS - 60) < self.MINIMO_LEGIBLE
 
@@ -293,8 +313,9 @@ class TestTarjetaSerieMensual:
             assert self._por_id(tarjeta, id_) is not None
 
     def test_el_store_trae_la_figura_completa(self, tarjeta):
+        # Con el fixture de 7 meses de 2026: 7 × 2 años = 14 pastillas.
         datos = self._por_id(tarjeta, "figura-serie-base").data
-        assert len(datos["layout"]["shapes"]) == 19
+        assert len(datos["layout"]["shapes"]) == 14
 
     def test_la_grafica_no_trae_figura_propia(self, tarjeta):
         # Si la trajera, habría dos escritores de 'figure' y el refresco

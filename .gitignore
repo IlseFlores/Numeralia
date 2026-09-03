@@ -18,8 +18,6 @@ Datos_Validados_*.xlsx
 pipeline_output.log
 *.log
 
-# Logos (binarios propios de cada despliegue, no del código)
-logos/
 
 # Basura de macOS / de este volumen
 .DS_Store

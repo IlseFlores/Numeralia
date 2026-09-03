@@ -16,11 +16,17 @@ from __future__ import annotations
 import os
 import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Sequence
 
 import pandas as pd
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
+
+try:
+    from PIL import Image as _Image
+except Exception:  # pragma: no cover - PIL siempre está disponible con fpdf2
+    _Image = None
 
 from .tema import COLOR_GRIS, COLOR_GRIS_MUTE, hex_a_rgb
 
@@ -32,6 +38,19 @@ ANCHO_MIN_COLUMNA = 8
 ALTO_FILA = 6
 ALTO_ENCABEZADO = 7
 TAMANO_LETRA_TABLA = 6
+ALTO_LOGO_PDF = 12
+
+
+def _ancho_logo(ruta: str, h: float) -> float:
+    """Ancho proporcional a una altura fija, en milímetros."""
+    if _Image is None or not os.path.exists(ruta):
+        return 0.0
+    try:
+        with _Image.open(ruta) as img:
+            ancho, alto = img.size
+        return ancho * h / alto
+    except Exception:
+        return 0.0
 
 
 def _sin_acentos_latin1(texto: str) -> str:
@@ -105,7 +124,8 @@ def anchos_proporcionales(pdf: FPDF, df: pd.DataFrame,
             for m, e in zip(minimos, extra_deseado)]
 
 
-def generar_pdf_tabla(df: pd.DataFrame, titulo: str, subtitulo: str = '') -> str:
+def generar_pdf_tabla(df: pd.DataFrame, titulo: str, subtitulo: str = '',
+                      logo_izq: str | None = None, logo_der: str | None = None) -> str:
     """
     Escribe la tabla completa en un PDF horizontal y devuelve su ruta.
 
@@ -115,6 +135,17 @@ def generar_pdf_tabla(df: pd.DataFrame, titulo: str, subtitulo: str = '') -> str
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
+
+    if logo_izq:
+        ancho = _ancho_logo(logo_izq, ALTO_LOGO_PDF)
+        if ancho:
+            pdf.image(logo_izq, x=pdf.l_margin, y=pdf.t_margin,
+                      h=ALTO_LOGO_PDF)
+    if logo_der:
+        ancho = _ancho_logo(logo_der, ALTO_LOGO_PDF)
+        if ancho:
+            pdf.image(logo_der, x=pdf.w - pdf.r_margin - ancho,
+                      y=pdf.t_margin, h=ALTO_LOGO_PDF)
 
     pdf.set_font('Helvetica', 'B', 14)
     pdf.set_text_color(*hex_a_rgb(COLOR_GRIS))
@@ -174,6 +205,8 @@ class DescargaPDF:
     archivo: str
     boton_id: str
     descarga_id: str
+    logo_izq: str | None = None
+    logo_der: str | None = None
 
 
 def registrar_descargas(app, descargas: Sequence[DescargaPDF]) -> None:
@@ -190,7 +223,8 @@ def registrar_descargas(app, descargas: Sequence[DescargaPDF]) -> None:
             # Fábrica para que cada callback capture SU descarga: sin esto,
             # todos se quedarían con la última del bucle.
             def _descargar(_n_clicks):
-                ruta = generar_pdf_tabla(d.df, d.titulo, d.subtitulo)
+                ruta = generar_pdf_tabla(d.df, d.titulo, d.subtitulo,
+                                          d.logo_izq, d.logo_der)
                 return dcc.send_file(ruta, filename=d.archivo)
             return _descargar
 
