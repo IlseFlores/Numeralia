@@ -1640,7 +1640,7 @@ def _encabezado_reporte():
             'maxWidth': '100%', 'objectFit': 'contain',
         }) if src else None
         return html.Div(contenido, style={
-            'flex': '1 1 0', 'display': 'flex', 'alignItems': 'center',
+            'flex': '1 1 0', 'display': 'flex', 'alignItems': 'flex-start',
             'justifyContent': alineacion, 'minWidth': '0',
         })
 
@@ -1650,7 +1650,7 @@ def _encabezado_reporte():
             _celda_logo(src_simaj, 'flex-start', 'logo-simaj'),
             html.Div([
                 html.H1('Reporte Diario de Calidad del Aire', className='titulo-reporte', style={
-                    'margin': '0', 'fontSize': '32px', 'fontWeight': '600',
+                    'margin': f'calc({ALTO_LOGO} + 15px) 0 0 0', 'fontSize': '32px', 'fontWeight': '600',
                     'color': '#173d4c', 'textAlign': 'center', 'lineHeight': '1.15',
                 }),
                 html.Div(_fecha_encabezado(), className='fecha-reporte', style={
@@ -1658,10 +1658,10 @@ def _encabezado_reporte():
                     'textAlign': 'center', 'marginTop': '8px',
                 }),
             ], style={'flex': '2 1 0', 'display': 'flex', 'alignItems': 'center',
-                      'justifyContent': 'center', 'padding': '0 24px',
+                      'justifyContent': 'flex-start', 'padding': '0 24px',
                       'flexDirection': 'column', 'minWidth': '0'}),
             _celda_logo(src_semadet, 'flex-end'),
-        ], className='fila-encabezado', style={'display': 'flex', 'alignItems': 'center',
+        ], className='fila-encabezado', style={'display': 'flex', 'alignItems': 'flex-start',
                   'gap': '24px', 'marginBottom': '22px'}),
 
         # Introducción
