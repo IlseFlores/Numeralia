@@ -3167,9 +3167,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             # Mitad derecha: dos barras horizontales apiladas (una por año)
             html.Div([
                 html.Div(id='echart-barras-alertas-25',
-                         style={'flex': '1', 'minHeight': '88px'}),
+                         style={'flex': '1', 'minHeight': '110px'}),
                 html.Div(id='echart-barras-alertas-26',
-                         style={'flex': '1', 'minHeight': '88px'}),
+                         style={'flex': '1', 'minHeight': '110px'}),
             ], style={'flex': '1 1 400px', 'minWidth': '610px',
                       'display': 'flex', 'flexDirection': 'column', 'gap': '6px',
                       'alignSelf': 'stretch',
