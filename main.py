@@ -2933,8 +2933,8 @@ def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
             html.Div('Se muestran los últimos 10 registros. Para consultar el listado completo, '
 'utiliza el ícono ubicado en la esquina superior derecha, o desplázate entre '
 'registros mediante las flechas de la esquina inferior derecha.',
-                      style={'position': 'absolute', 'bottom': '12px', 'left': '10px',
-                             'color': COLOR_GRIS_MUTE, 'fontSize': '11px', 'zIndex': 2}),
+                      style={'marginTop': '6px',
+                             'color': COLOR_GRIS_MUTE, 'fontSize': '11px'}),
         ], className='bitacora-contenido'),
         dcc.Download(id='descarga-pdf-alertas'),
     ], id='bitacora-alertas-wrapper', className='bitacora-cerrada',
@@ -2991,8 +2991,8 @@ def _card_bitacora_episodios(df_episodios_2026_raw: pd.DataFrame):
             html.Div('Se muestran los últimos 10 registros. Para consultar el listado completo, '
 'utiliza el ícono ubicado en la esquina superior derecha, o desplázate entre '
 'registros mediante las flechas de la esquina inferior derecha.',
-                      style={'position': 'absolute', 'bottom': '12px', 'left': '10px',
-                             'color': COLOR_GRIS_MUTE, 'fontSize': '11px', 'zIndex': 2}),
+                      style={'marginTop': '6px',
+                             'color': COLOR_GRIS_MUTE, 'fontSize': '11px'}),
         ], className='bitacora-contenido'),
         dcc.Download(id='descarga-pdf-episodios'),
     ], id='bitacora-episodios-wrapper', className='bitacora-cerrada',
