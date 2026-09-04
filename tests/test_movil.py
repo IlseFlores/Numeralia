@@ -534,12 +534,12 @@ class TestCssMovil:
         for selector in ("carrusel-kpis", "indicador-kpi", "indicadores-kpis"):
             assert selector not in css, f"Quedó un resto del carrusel: {selector}"
 
-    def test_imeca_se_apila_en_columna_invertida(self, css):
-        # 'column-reverse' porque en el DOM 2025 va primero y 2026 debe
-        # quedar arriba (es el año en curso).
+    def test_imeca_se_apila_en_columna(self, css):
+        # En celular 2025 va primero (orden del DOM) y 2026 abajo.
         bloque = re.search(r"\.fila-imeca\s*\{([^}]*)\}", css)
         assert bloque is not None
-        assert "column-reverse" in bloque.group(1)
+        assert "flex-direction: column" in bloque.group(1)
+        assert "column-reverse" not in bloque.group(1)
 
     def test_el_acento_de_imeca_pasa_a_borde_superior(self, css):
         bloque = re.search(r"\.bloque-imeca-anio\s*\{([^}]*)\}", css)

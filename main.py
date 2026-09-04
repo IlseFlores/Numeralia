@@ -1650,8 +1650,8 @@ def _encabezado_reporte():
             _celda_logo(src_simaj, 'flex-start', 'logo-simaj'),
             html.Div([
                 html.H1('Reporte Diario de Calidad del Aire', className='titulo-reporte', style={
-                    'margin': '0', 'fontSize': '32px', 'fontWeight': '600',
-                    'color': '#006f68', 'textAlign': 'center', 'lineHeight': '1.15',
+                    'margin': '0', 'fontSize': '32px', 'fontWeight': '700',
+                    'color': '#111C51', 'textAlign': 'center', 'lineHeight': '1.15',
                 }),
                 html.Div(_fecha_encabezado(), className='fecha-reporte', style={
                     'color': COLOR_2026, 'fontSize': '20px', 'fontWeight': '600',
@@ -1666,9 +1666,8 @@ def _encabezado_reporte():
 
         # Introducción
         html.P(
-            'El Reporte Diario de Calidad del Aire presenta información acumulada '
-            'al día señalado en el encabezado. Permite conocer cómo se ha comportado '
-            'la calidad del aire.',
+            'El Reporte Diario de Calidad del Aire permite conocer cómo se ha comportado '
+            'la calidad del aire al día señalado en el encabezado. ',
             style={'color': COLOR_GRIS_MUTE, 'fontSize': '17px', 'lineHeight': '1.6',
                    'textAlign': 'center', 'maxWidth': '1000px', 'margin': '0 auto'},
         ),
@@ -1916,7 +1915,7 @@ def _card_serie_mensual_2025(df_resumen: pd.DataFrame):
             html.Span('2025', style={'color': COLOR_2025, 'fontWeight': '800'}),
             '-',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
-        ], style={'color': '#006f68', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
+        ], style={'color': '#111C51', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div([
             f'Acumulado mensual de días en los que la calidad del aire fue buena o aceptable según '
             f'el Índice Aire y Salud (NOM-172-SEMARNAT-2023), considerando el valor más alto '
@@ -1960,8 +1959,8 @@ def _detalle_placeholder():
 def _tabla_detalle_estacion(estacion: str, row: pd.Series):
     """Tabla real (no tooltip) con los años como columnas, para el panel lateral del mapa."""
     filas_datos = [
-        ('Días con mala calidad', row[MALA_25], row[MALA_26]),
         ('Días buena / aceptable', row[BUENA_25], row[BUENA_26]),
+        ('Días con mala calidad', row[MALA_25], row[MALA_26]),
         ('Días sin dato', row[SINDATO_25], row[SINDATO_26]),
     ]
 
@@ -1972,18 +1971,18 @@ def _tabla_detalle_estacion(estacion: str, row: pd.Series):
     ])
     filas = [
         html.Tr([
-            html.Td(label, style={'padding': '7px 10px', 'color': COLOR_GRIS, 'fontSize': '15px',
+            html.Td(label, style={'padding': '7px 10px', 'color': COLOR_GRIS_MUTE, 'fontSize': '15px',
                                    'backgroundColor': COLOR_GRIS_50}),
             html.Td(v25, style={'padding': '7px 10px', 'textAlign': 'center', 'fontWeight': '700',
-                                 'color': COLOR_GRIS}),
+                                 'color': COLOR_GRIS_MUTE}),
             html.Td(v26, style={'padding': '7px 10px', 'textAlign': 'center', 'fontWeight': '700',
-                                 'color': COLOR_GRIS}),
+                                 'color': COLOR_GRIS_MUTE}),
         ])
         for label, v25, v26 in filas_datos
     ]
 
     return html.Div([
-        html.Div(estacion, style={'fontWeight': '800', 'color': COLOR_GRIS, 'fontSize': '18px',
+        html.Div(estacion, style={'fontWeight': '800', 'color': COLOR_GRIS_MUTE, 'fontSize': '18px',
                                    'marginBottom': '10px'}),
         html.Div(
             html.Table([html.Thead(encabezado), html.Tbody(filas)],
@@ -1991,8 +1990,8 @@ def _tabla_detalle_estacion(estacion: str, row: pd.Series):
             className='tabla-scroll',
         style={'borderRadius': '10px', 'overflow': 'hidden', 'border': f'1px solid {COLOR_GRIS_100}'}
         ),
-        html.Div(f'Tendencia 2025 vs 2026: {_tendencia_buena(row)}', style={
-            'color': COLOR_GRIS_MUTE, 'fontSize': '14px', 'marginTop': '10px'}),
+        # html.Div(f'Tendencia 2025 vs 2026: {_tendencia_buena(row)}', style={
+        #     'color': COLOR_GRIS_MUTE, 'fontSize': '14px', 'marginTop': '10px'}),
     ])
 
 
@@ -2074,11 +2073,11 @@ def _kpi_total(etiqueta: str, valor):
     """
     return html.Div([
         html.Span(etiqueta, style={
-            'color': '#006f68', 'fontSize': '15px', 'fontWeight': '700',
+            'color': '#173d4c', 'fontSize': '15px', 'fontWeight': '700',
             'textTransform': 'uppercase', 'letterSpacing': '0.04em',
         }),
         html.Span(str(valor), style={
-            'color': '#006f68', 'fontWeight': '800', 'fontSize': '32px', 'lineHeight': '1',
+            'color': '#173d4c', 'fontWeight': '800', 'fontSize': '32px', 'lineHeight': '1',
         }),
     ], style={**_KPI_PIE, 'display': 'flex', 'justifyContent': 'space-between',
               'alignItems': 'center', 'gap': '12px'})
@@ -2160,7 +2159,7 @@ def _kpi_alertas_emergencias(df_alertas: pd.DataFrame, col_2026: str):
     return html.Div([
         html.Div('Eventos activados', style=_KPI_TITULO),
         html.Div(html.Div([
-            html.Div(_kpi_dato('Alertas', alertas, '#FCB308'),
+            html.Div(_kpi_dato('Alertas', alertas, '#FFB300'),
                      style={'flex': '1', 'minWidth': '0'}),
             html.Div(style={'width': '1px', 'backgroundColor': COLOR_GRIS_100,
                             'alignSelf': 'stretch'}),
@@ -2230,7 +2229,7 @@ def _tabla_episodios(df: pd.DataFrame):
         texto_claro = sev >= 2
         base = {
             'backgroundColor': _SEVERIDAD_TINTES[sev],
-            'color': '#ffffff' if texto_claro else COLOR_GRIS,
+            'color': '#ffffff' if texto_claro else '#173d4c',
             'fontWeight': '700',
         }
         tiene_subs = bool(g['subs'])
@@ -2259,7 +2258,7 @@ def _tabla_episodios(df: pd.DataFrame):
 
         # Sub-filas en un tbody aparte, inicialmente oculto
         if tiene_subs:
-            sub_base = {'backgroundColor': '#ffffff', 'color': COLOR_GRIS}
+            sub_base = {'backgroundColor': '#ffffff', 'color': COLOR_GRIS_MUTE}
             sub_trs = [
                 html.Tr([
                     html.Td(str(sr[col_label]).strip(), style=_lbl(sub_base, indent=True)),
@@ -2274,7 +2273,7 @@ def _tabla_episodios(df: pd.DataFrame):
 
     # Fila de totales: mismo fondo aqua diluido y color de letra que los KPI.
     if fila_totales is not None:
-        base_tot = {**_KPI_PIE, 'color': '#006f68'}
+        base_tot = {**_KPI_PIE, 'color': '#173d4c'}
         tbodies.append(html.Tbody([html.Tr([
             html.Td(str(fila_totales[col_label]).strip(), style=_lbl(base_tot)),
             html.Td(fila_totales[col_2025], style={**_num(base_tot), 'fontWeight': '800'}),
@@ -2282,7 +2281,7 @@ def _tabla_episodios(df: pd.DataFrame):
         ])]))
 
     encabezado = html.Thead(html.Tr([
-        html.Th('Episodios activados', style={'backgroundColor': '#e8edef', 'color': '#006f68',
+        html.Th('Episodios activados', style={'backgroundColor': '#e8edef', 'color': '#173d4c',
                                                'padding': '10px 14px', 'textAlign': 'left'}),
         html.Th('2025', style={'backgroundColor': COLOR_2025, 'color': '#fff', 'padding': '10px 14px'}),
         html.Th('2026', style={'backgroundColor': COLOR_2026, 'color': '#fff', 'padding': '10px 14px'}),
@@ -2357,9 +2356,9 @@ def _datos_grafica_episodios(df: pd.DataFrame, col_2025: str, col_2026: str,
 
     _escala_25 = list(reversed(ESCALA_EPISODIOS_ANIO_PREVIO))
     _escala_26 = list(ESCALA_EPISODIOS_ANIO_ACTUAL)
-    # Ozono se aclara un poco más con tinte para resaltar el degradado.
-    _escala_25[0] = tinte(_escala_25[0], 0.85)
-    _escala_26[0] = tinte(_escala_26[0], 0.95)
+    # El Ozono usa el mismo tono claro que las alertas de ese año.
+    _escala_25[0] = _COLOR_ALERTA_25
+    _escala_26[0] = _COLOR_ALERTA_26
 
     return {
         'titulo': titulo,
@@ -2375,22 +2374,21 @@ def _datos_grafica_episodios(df: pd.DataFrame, col_2025: str, col_2026: str,
         # El apilado va de suave (Ozono, índice 0) a fuerte (PM2.5, índice 2):
         #   - 2025: la escala original va de oscuro a claro, así que se invierte.
         #   - 2026: la escala original ya va de claro a oscuro, se usa tal cual.
-        # El Ozono se aclaró un poco más arriba con tinte para resaltar el
-        # degradado sin perder el tono del año.
+        # Ozono = tono claro de alertas; PM10/PM2.5 = degradado del año.
         'escalas_anio': [_escala_25, _escala_26],
         # Color del texto de cada segmento, por año y por contaminante.
-        #   2025: Ozono=claro (texto COLOR_2025), PM10/PM2.5=blanco.
-        #   2026: Ozono=claro (texto COLOR_2026), PM10/PM2.5=blanco.
+        #   Ozono: color gris como en las gráficas de Alertas.
+        #   PM10/PM2.5: blanco sobre fondos medios/oscuros.
         'colores_texto_anio': [
             [
-                {'nombre': COLOR_2025,   'valor': COLOR_2025},       # Ozono – tono claro
-                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},     # PM10  – tono medio
-                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},     # PM2.5 – tono oscuro
+                {'nombre': COLOR_GRIS_MUTE, 'valor': COLOR_GRIS_MUTE},  # Ozono – tono claro
+                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},   # PM10  – tono medio
+                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},   # PM2.5 – tono oscuro
             ],
             [
-                {'nombre': COLOR_2026,   'valor': COLOR_2026},       # Ozono – tono claro
-                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},     # PM10  – tono medio
-                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},     # PM2.5 – tono oscuro
+                {'nombre': COLOR_2026, 'valor': COLOR_2026},        # Ozono 2026 – tono claro
+                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},   # PM10  – tono medio
+                {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},   # PM2.5 – tono oscuro
             ],
         ],
         'series': [
@@ -2415,11 +2413,11 @@ def _tabla_alertas(df: pd.DataFrame):
 
         if es_total:
             # Mismo fondo aqua diluido y color de letra que los KPI.
-            estilo = {**_KPI_PIE, 'color': '#006f68'}
+            estilo = {**_KPI_PIE, 'color': '#173d4c'}
         elif es_emergencia:
             estilo = {'backgroundColor': '#FC3508', 'color': '#ffffff'}
         else:
-            estilo = {'backgroundColor': '#FCB308', 'color': COLOR_GRIS}
+            estilo = {'backgroundColor': '#FFB300', 'color': '#173d4c'}
 
         filas.append(html.Tr([
             html.Td(etiqueta.rstrip(':'), style={**estilo, 'padding': '10px 14px', 'textAlign': 'left',
@@ -2431,7 +2429,7 @@ def _tabla_alertas(df: pd.DataFrame):
         ]))
 
     encabezado = html.Tr([
-        html.Th('Categoría', style={'backgroundColor': '#e8edef', 'color': '#006f68',
+        html.Th('Categoría', style={'backgroundColor': '#e8edef', 'color': '#173d4c',
                                      'padding': '10px 14px', 'textAlign': 'left'}),
         html.Th('2025', style={'backgroundColor': COLOR_2025, 'color': '#fff', 'padding': '10px 14px'}),
         html.Th('2026', style={'backgroundColor': COLOR_2026, 'color': '#fff', 'padding': '10px 14px'}),
@@ -2449,8 +2447,8 @@ def _tabla_parametros():
     """Tabla de parámetros medidos por el SIMAJ."""
     parametros = [
         (html.Span(['O', html.Sub('3')], style={'fontWeight': '700'}), 'Ozono'),
-        (html.Span(['N', 'O', html.Sub('2')], style={'fontWeight': '700'}), 'Óxidos de nitrógeno'),
-        (html.Span(['S', 'O', html.Sub('2')], style={'fontWeight': '700'}), 'Bióxido de Azufre'),
+        (html.Span(['N', 'O', html.Sub('2')], style={'fontWeight': '700'}), 'Dióxido de nitrógeno'),
+        (html.Span(['S', 'O', html.Sub('2')], style={'fontWeight': '700'}), 'Bióxido de azufre'),
         (html.Span(['C', 'O'], style={'fontWeight': '700'}), 'Monóxido de carbono'),
         (html.Span(['P', 'M', html.Sub('10')], style={'fontWeight': '700'}), 'Partículas menores a 10 micrómetros'),
         (html.Span(['P', 'M', html.Sub('2.5')], style={'fontWeight': '700'}), 'Partículas menores a 2.5 micrómetros'),
@@ -2460,7 +2458,7 @@ def _tabla_parametros():
             html.Td(formula, style={
                 'padding': '8px 12px', 'textAlign': 'center',
                 'borderBottom': f'1px solid {COLOR_GRIS_100}',
-                'color': COLOR_GRIS, 'fontSize': '13px',
+                'color': COLOR_GRIS_MUTE, 'fontSize': '13px',
             }),
             html.Td(desc, style={
                 'padding': '8px 12px', 'textAlign': 'left',
@@ -2472,7 +2470,7 @@ def _tabla_parametros():
     ]
     encabezado = html.Thead(html.Tr([
         html.Th('Parámetros', colSpan=2, style={
-            'backgroundColor': '#e8edef', 'color': '#006f68',
+            'backgroundColor': '#e8edef', 'color': '#173d4c',
             'padding': '8px 12px', 'textAlign': 'center',
             'fontWeight': '700', 'fontSize': '13px',
         }),
@@ -2511,9 +2509,9 @@ def _datos_barras_alertas(df_alertas: pd.DataFrame) -> dict:
         'color_e26': COLOR_2026,
         # Alertas (fondo tenue): texto gris oscuro para legibilidad
         # Emergencias (fondo pleno): texto blanco
-        'texto_a25': COLOR_GRIS,
+        'texto_a25': COLOR_GRIS_MUTE,
         'texto_e25': COLOR_BLANCO,
-        'texto_a26': COLOR_GRIS,
+        'texto_a26': COLOR_GRIS_MUTE,
         'texto_e26': COLOR_BLANCO,
     }
 
@@ -2560,6 +2558,22 @@ def _fecha_mes_abreviado(valor) -> str:
         return texto
 
 
+def _formatear_hora(hora) -> str:
+    """Deja la hora en formato H:MM a.m./p.m., sin segundos."""
+    s = str(hora).strip().replace('.', '').lower()
+    s = s.replace('p.m', ' PM').replace('a.m', ' AM')
+    s = s.replace('pm', ' PM').replace('am', ' AM')
+    for fmt in ('%I:%M:%S %p', '%I:%M %p', '%H:%M:%S', '%H:%M'):
+        try:
+            dt = datetime.strptime(s, fmt)
+            h12 = dt.hour % 12 or 12
+            ampm = 'a.m.' if dt.hour < 12 else 'p.m.'
+            return f"{h12}:{dt.minute:02d} {ampm}"
+        except ValueError:
+            pass
+    return str(hora)
+
+
 def _card_imeca(df_imeca: pd.DataFrame):
     d = df_imeca.set_index(df_imeca.columns[0])
 
@@ -2576,7 +2590,7 @@ def _card_imeca(df_imeca: pd.DataFrame):
             html.Div([
                 # Columna izquierda: número grande + badge
                 html.Div([
-                    html.Div(str(valor), style={'color': COLOR_GRIS, 'fontSize': '42px',
+                    html.Div(str(valor), style={'color': COLOR_GRIS_MUTE, 'fontSize': '42px',
                                                 'fontWeight': '800', 'lineHeight': '1'}),
                     html.Div(_clasificar_imeca(valor), style={
                         'display': 'inline-block', 'backgroundColor': color, 'color': '#ffffff',
@@ -2589,14 +2603,14 @@ def _card_imeca(df_imeca: pd.DataFrame):
                 # Columna derecha: metadata
                 html.Div([
                     html.Div([html.Span('Contaminante  ', style={'color': COLOR_GRIS_MUTE}),
-                              html.B(_get(anio, 'Contaminante'), style={'color': '#006f68'})]),
+                              html.B(_get(anio, 'Contaminante'), style={'color': '#173d4c'})]),
                     html.Div([html.Span('Estación  ', style={'color': COLOR_GRIS_MUTE}),
-                              html.B(_get(anio, 'Estación'), style={'color': '#006f68'})]),
+                              html.B(_get(anio, 'Estación'), style={'color': '#173d4c'})]),
                     html.Div([html.Span('Fecha  ', style={'color': COLOR_GRIS_MUTE}),
                               html.B(_fecha_mes_abreviado(_get(anio, 'Fecha')),
-                                     style={'color': '#006f68'})]),
+                                     style={'color': '#173d4c'})]),
                     html.Div([html.Span('Hora  ', style={'color': COLOR_GRIS_MUTE}),
-                              html.B(_get(anio, 'Hora'), style={'color': '#006f68'})]),
+                              html.B(_formatear_hora(_get(anio, 'Hora')), style={'color': '#173d4c'})]),
                 ], style={'fontSize': '14px', 'display': 'grid', 'gap': '4px',
                           'alignContent': 'center'}),
             ], style={'display': 'flex', 'flexDirection': 'row', 'alignItems': 'center'}),
@@ -2604,9 +2618,9 @@ def _card_imeca(df_imeca: pd.DataFrame):
                   'borderLeft': f'4px solid {color}', '--color-acento': color})
 
     return html.Div([
-        html.Div('IMECA Máximo Registrado', style={'color': '#006f68', 'fontWeight': '700',
+        html.Div('IMECA Máximo Registrado', style={'color': '#111C51', 'fontWeight': '700',
                                                      'fontSize': '17px', 'marginBottom': '4px'}),
-        html.Div('Valor más alto del índice en el año, por contaminante y estación.',
+        html.Div('Valor más alto del índice en el año',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '14px', 'marginBottom': '12px'}),
         # 'fila-imeca': en celular se apila en columna (ver
         # assets/responsive_movil.css) y, como 2025 va primero en el DOM, se
@@ -2756,7 +2770,7 @@ def _card_eventos_activos(eventos_alertas, eventos_episodios=None):
 
     if not todos:
         cuerpo = html.Div(
-            'Sin episodios activos por el momento.',
+            'Sin episodios ni eventos activos al momento.',
             style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'textAlign': 'center',
                    'padding': '18px 0'},
         )
@@ -2768,7 +2782,7 @@ def _card_eventos_activos(eventos_alertas, eventos_episodios=None):
 
             if tipo == 'alerta':
                 fase = ev.get('fase', '').lower()
-                color_badge = '#FC3508' if 'emergencia' in fase else '#FCB308'
+                color_badge = '#FC3508' if 'emergencia' in fase else '#FFB300'
                 texto_badge = ev.get('fase') or 'Alerta'
                 texto_claro_badge = 'emergencia' in fase
                 descripcion = ev.get('incidente', '')
@@ -2776,7 +2790,7 @@ def _card_eventos_activos(eventos_alertas, eventos_episodios=None):
                 subtexto = None
             else:
                 sev = ev.get('severidad', 0)
-                color_badge = _SEVERIDAD_TINTES.get(sev, '#FCB308')
+                color_badge = _SEVERIDAD_TINTES.get(sev, '#FFB300')
                 texto_badge = ev.get('evento') or 'Episodio activo'
                 texto_claro_badge = sev >= 2
                 descripcion = None
@@ -2787,13 +2801,13 @@ def _card_eventos_activos(eventos_alertas, eventos_episodios=None):
             fichas.append(html.Div([
                 html.Div(texto_badge, style={
                     'backgroundColor': color_badge,
-                    'color': '#ffffff' if texto_claro_badge else COLOR_GRIS,
+                    'color': '#ffffff' if texto_claro_badge else COLOR_GRIS_MUTE,
                     'display': 'inline-block',
                     'padding': '4px 12px', 'borderRadius': '6px', 'fontWeight': '700',
                     'fontSize': '13px', 'marginBottom': '6px',
                 }),
                 html.Div(descripcion, style={
-                    'color': COLOR_GRIS, 'fontSize': '15px', 'fontWeight': '600',
+                    'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'fontWeight': '600',
                 }) if tipo == 'alerta' and descripcion else None,
                 html.Div(detalle, style={
                     'color': COLOR_GRIS_MUTE, 'fontSize': '14px',
@@ -2813,7 +2827,7 @@ def _card_eventos_activos(eventos_alertas, eventos_episodios=None):
         cuerpo = html.Div(fichas)
 
     return html.Div([
-        html.Div('Episodios o Eventos Activos + Contingencias y Precontingencias', style=_KPI_TITULO),
+        html.Div('Episodios o Eventos Activos', style=_KPI_TITULO),
         html.Div(cuerpo, style={**_KPI_CUERPO, 'display': 'flex',
                                  'flexDirection': 'column', 'justifyContent': 'center'}),
     ], style=_KPI_CONTENEDOR)
@@ -2846,7 +2860,7 @@ def _tabla_paginada(df: pd.DataFrame, id_tabla: str, columna_color: str = None,
     style_data_conditional = []
     if columna_color and mapa_color:
         for valor, color in mapa_color.items():
-            texto = '#ffffff' if valor in texto_claro_valores else COLOR_GRIS
+            texto = '#ffffff' if valor in texto_claro_valores else '#173d4c'
             style_data_conditional.append({
                 'if': {'filter_query': f'{{{columna_color}}} = "{valor}"', 'column_id': columna_color},
                 'backgroundColor': color,
@@ -2862,7 +2876,7 @@ def _tabla_paginada(df: pd.DataFrame, id_tabla: str, columna_color: str = None,
         page_size=10,
         sort_action='native',
         style_table={'overflowX': 'auto'},
-        style_header={'backgroundColor': '#e8edef', 'color': '#006f68', 'fontWeight': '700',
+        style_header={'backgroundColor': '#e8edef', 'color': '#173d4c', 'fontWeight': '700',
                       'textAlign': 'left', 'padding': '8px 10px', 'border': 'none'},
         style_cell={'padding': '8px 10px', 'fontFamily': 'Inter, Segoe UI, sans-serif', 'fontSize': '15px',
                     'color': COLOR_GRIS_MUTE, 'textAlign': 'left', 'minWidth': '90px', 'maxWidth': '240px',
@@ -2890,7 +2904,7 @@ def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
     df = _ordenar_por_no_desc(df_alertas_2026_raw[cols_mostrar])
 
     col_fase = _buscar_columna(cols_mostrar, 'fase decretada', 'fase')
-    mapa_color = {'Alerta': '#FCB308', 'Emergencia': '#FC3508'} if col_fase else None
+    mapa_color = {'Alerta': '#FFB300', 'Emergencia': '#FC3508'} if col_fase else None
 
     return html.Div([
         html.Div([
@@ -2900,14 +2914,12 @@ def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
             ], id='bitacora-alertas-header',
                      className='bitacora-titulo',
                      n_clicks=0,
-                     style={'flex': '1', 'color': '#006f68', 'fontWeight': '700',
+                     style={'flex': '1', 'color': '#111C51', 'fontWeight': '700',
                             'fontSize': '18px'}),
             _icono_descarga('btn-pdf-alertas'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
                   'marginBottom': '4px'}),
-        html.Div('Episodios derivados de eventos extraordinarios, como incendios u otras fuentes que pueden afectar la calidad del aire.'
-                'Decretados de acuerdo con el Programa de Reducción de Emisiones '
-                  'Contaminantes a la Atmósfera (PRECA) vigente.',
+        html.Div('Eventos extraordinarios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
             html.Div(
@@ -2959,13 +2971,12 @@ def _card_bitacora_episodios(df_episodios_2026_raw: pd.DataFrame):
             ], id='bitacora-episodios-header',
                      className='bitacora-titulo',
                      n_clicks=0,
-                     style={'flex': '1', 'color': '#006f68', 'fontWeight': '700',
+                     style={'flex': '1', 'color': '#173d4c', 'fontWeight': '700',
                             'fontSize': '18px'}),
             _icono_descarga('btn-pdf-episodios'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
                   'marginBottom': '4px'}),
-        html.Div('Decretados de acuerdo con el Programa de Reducción de Emisiones '
-                  'Contaminantes a la Atmósfera (PRECA) vigente.',
+        html.Div('Episodios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
             html.Div(
@@ -3116,8 +3127,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             html.Span('2025', style={'color': COLOR_2025, 'fontWeight': '800'}),
             '-',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
-        ], style={'color': '#006f68', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
-        html.Div('Episodios activados a partir de las mediciones registradas en las estaciones del SIMAJ.',
+        ], style={'color': '#111C51', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
+        html.Div('Episodios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
             html.Div([_tabla_episodios(df_episodios)],
@@ -3130,11 +3141,11 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 # izquierda (~450 px), para que las dos mitades del bloque
                 # terminen a la misma altura en vez de dejar un hueco.
                 html.Div(id='echart-precontingencias',
-                         style={'flex': '1', 'minWidth': '190px', 'height': ALTO_GRAFICA_EPISODIOS}),
+                         style={'flex': '1', 'minWidth': '340px', 'height': ALTO_GRAFICA_EPISODIOS}),
                 html.Div(id='echart-contingencias-f1',
-                         style={'flex': '1', 'minWidth': '190px', 'height': ALTO_GRAFICA_EPISODIOS}),
-            ], className='fila-apilable', style={'flex': '1 1 400px', 'minWidth': '380px',
-                      'display': 'flex', 'gap': '10px', 'alignItems': 'stretch'}),
+                         style={'flex': '1', 'minWidth': '340px', 'height': ALTO_GRAFICA_EPISODIOS}),
+            ], className='fila-apilable', style={'flex': '1 1 400px', 'minWidth': '690px',
+                      'display': 'flex', 'gap': '6px', 'alignItems': 'stretch'}),
         ], className='fila-apilable', style={'display': 'flex', 'gap': '20px', 'flexWrap': 'wrap',
                   'alignItems': 'stretch'}),
 
@@ -3154,27 +3165,25 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             html.Span('2025', style={'color': COLOR_2025, 'fontWeight': '800'}),
             '-',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
-        ], style={'color': '#006f68', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
-        html.Div('Episodios derivados de eventos extraordinarios, como incendios u otras fuentes '
-                  'que pueden afectar la calidad del aire.',
+        ], style={'color': '#111C51', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
+        html.Div('Episodios derivados de eventos extraordinarios de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         # Tabla izquierda + barras horizontales derechas en el mismo cuadro
         html.Div([
             # Mitad izquierda: tabla comparativa
             html.Div(
                 [_tabla_alertas(df_alertas)],
-                style={'flex': '0 0 48%', 'minWidth': '260px'},
+                style={'flex': '1 1 420px', 'minWidth': '340px'},
             ),
             # Mitad derecha: dos barras horizontales apiladas (una por año)
             html.Div([
                 html.Div(id='echart-barras-alertas-25',
-                         style={'flex': '1', 'minHeight': '88px'}),
+                         style={'flex': '1', 'minHeight': '100px'}),
                 html.Div(id='echart-barras-alertas-26',
-                         style={'flex': '1', 'minHeight': '88px'}),
-            ], style={'flex': '1', 'minWidth': '200px',
+                         style={'flex': '1', 'minHeight': '100px'}),
+            ], style={'flex': '1 1 400px', 'minWidth': '690px',
                       'display': 'flex', 'flexDirection': 'column', 'gap': '6px',
-                      'alignSelf': 'stretch',
-                      'paddingLeft': '22px'}),
+                      'alignSelf': 'stretch'}),
         ], className='fila-apilable',
            style={'display': 'flex', 'gap': '20px',
                   'flexWrap': 'wrap', 'alignItems': 'stretch'}),
@@ -3214,7 +3223,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             ' vs ',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
             ' por estación de monitoreo',
-        ], style={'color': '#006f68', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
+        ], style={'color': '#111C51', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div([
             html.Div([
                 dcc.Graph(id='mapa-grafico', figure=fig_mapa,
@@ -3245,7 +3254,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 # ser lo mismo y el panel se veía desalineado.
                 html.Div([
                     html.Div('Detalle por estación', style={
-                        'color': '#006f68', 'fontWeight': '700',
+                        'color': '#173d4c', 'fontWeight': '700',
                         'fontSize': '16px', 'marginBottom': '4px'}),
                     html.Div('Categoría acorde con el Índice Aire y Salud de la NOM-172-SEMARNAT-2023',
                              style={'color': COLOR_GRIS_MUTE, 'fontSize': '13px',
@@ -3259,11 +3268,17 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         ], className='fila-apilable', style={'display': 'flex', 'gap': '10px', 'flexWrap': 'wrap'}),
         html.P([
             "El color y tamaño de cada burbuja representan el ",
-            html.B("cambio en días de buena calidad (2026 vs 2025)"),
+            html.B([
+                "cambio en días de buena calidad (",
+                html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
+                ' vs ',
+                html.Span('2025', style={'color': COLOR_2025, 'fontWeight': '800'}),
+                ')',
+            ]),
             " por estación: ",
             html.Span("aqua", style={'color': COLOR_2026, 'fontWeight': '700'}),
             " = tuvo más días de buena calidad que el año pasado (mejora), ",
-            html.Span("azul marino", style={'color': COLOR_2025, 'fontWeight': '700'}),
+            html.Span("gris", style={'color': COLOR_2025, 'fontWeight': '700'}),
             " = tuvo menos (empeora); entre más grande la burbuja, mayor el cambio. "
             "Pasa el cursor sobre una estación para ver el comparativo completo en el panel de la derecha.",
         ], style={'color': COLOR_MUTED, 'fontSize': '14px', 'marginTop': '14px', 'marginBottom': '0'}),
@@ -3316,8 +3331,18 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
       body.capturando-pdf #react-entry-point {
         min-width: 1280px;
       }
+      /* Durante la captura del PDF el título baja debajo de los logos,
+         igual que en escritorio. */
+      body.capturando-pdf .fila-encabezado,
+      body.capturando-pdf .fila-encabezado > div:first-child,
+      body.capturando-pdf .fila-encabezado > div:last-child {
+        align-items: flex-start !important;
+      }
+      body.capturando-pdf .fila-encabezado .titulo-reporte {
+        margin-top: 92px !important;
+      }
       @media print {
-        @page { size: A4 landscape; margin: 10mm; }
+        @page { size: A4 portrait; margin: 5mm; }
         /* La impresión con Ctrl+P también va en el layout de escritorio. Antes
            lo heredaba del min-width global; al hacerlo responsive hay que
            repetirlo aquí, o imprimir desde una ventana angosta saldría con las
@@ -3376,17 +3401,14 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         html.Div([
             _card_serie_mensual_2025(df_resumen_mensual),
             mapa_card,
+            imeca_card,
         ], id='pdf-pagina-2'),
 
         html.Div([
-            imeca_card,
             bitacora_episodios_card,
             bitacora_alertas_card,
-        ], id='pdf-pagina-3'),
-
-        html.Div([
             parametros_card,
-        ], id='pdf-pagina-4'),
+        ], id='pdf-pagina-3'),
     ], className='lienzo-reporte', style={
         'backgroundColor': COLOR_BG,
         'minHeight': '100vh',
@@ -3479,8 +3501,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         DescargaPDF(
             df=df_bitacora_alertas,
             titulo='Alertas y Emergencias Atmosféricas 2026',
-            subtitulo='Episodios derivados de eventos extraordinarios, como incendios '
-                      'u otras fuentes que pueden afectar la calidad del aire.',
+            subtitulo='Eventos extraordinarios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.\nCORTE AL ' + _fecha_encabezado(),
             archivo='Alertas_y_Emergencias_2026.pdf',
             boton_id='btn-pdf-alertas',
             descarga_id='descarga-pdf-alertas',
@@ -3489,10 +3510,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         ),
         DescargaPDF(
             df=df_bitacora_episodios,
-            titulo='Episodios de Mala calidad del aire 2026',
-            subtitulo='Episodios activados a partir de las mediciones registradas '
-                      'en las estaciones del SIMAJ.',
-            archivo='Episodios_2026.pdf',
+            titulo='Episodios de Mala calidad del aire',
+            subtitulo='Episodios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.\nCORTE AL ' + _fecha_encabezado(),
+            archivo='Episodios.pdf',
             boton_id='btn-pdf-episodios',
             descarga_id='descarga-pdf-episodios',
             logo_izq=_ruta_logo_simaj,
@@ -3544,9 +3564,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 // Todas las medidas que cambian entre los dos modos, juntas
                 // para poder compararlas de un golpe de vista.
                 const med = compacta
-                    ? {nombre: 10, valor: 13, salto: 12, total: 14, distancia: 16,
+                    ? {nombre: 11, valor: 14, salto: 12, total: 14, distancia: 16,
                        titulo: 13, eje: 12, gridArriba: 40, gridAbajo: 22}
-                    : {nombre: 11, valor: 16, salto: 13, total: 17, distancia: 22,
+                    : {nombre: 10, valor: 14, salto: 10, total: 17, distancia: 22,
                        titulo: 15, eje: 14, gridArriba: 64, gridAbajo: 28};
 
                 // El eje lo fija el año con más episodios, así que un
@@ -3582,9 +3602,13 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                             position: 'inside',
                             formatter: function (p) {
                                 if (!p.value) { return ''; }
-                                // Siempre muestra nombre y valor; hideOverlap
-                                // evita que se encimen si la barra es muy pequeña.
-                                return '{n|' + s.nombre + '}\\n{v|' + p.value + '}';
+                                // Segmentos menores al 9 % del total: nombre + valor
+                                // en una sola línea para que quepan. De lo contrario,
+                                // valor arriba y nombre abajo.
+                                if (p.value / maxTotal < 0.09) {
+                                    return '{n|' + s.nombre + ':}{v| ' + p.value + '}';
+                                }
+                                return '{v|' + p.value + '}\\n{n|' + s.nombre + ':}';
                             },
                             // El color del texto lo decide el tono del relleno,
                             // que depende del año y del contaminante: hay tonos
@@ -3797,6 +3821,12 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 return window.dash_clientside.no_update;
             }
 
+            const compacta = getComputedStyle(document.body)
+                                  .getPropertyValue('--modo-compacto').trim() === '1';
+            const fAnio = compacta ? 11 : 13;
+            const fNombre = compacta ? 9 : 11;
+            const fValor = compacta ? 12 : 14;
+
             function dibujar(divId, anio,
                              valorA, valorE,
                              colorA, colorE,
@@ -3818,7 +3848,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     yAxis: {
                         type: 'category',
                         data: [anio],
-                        axisLabel: {color: colorE, fontWeight: 'bold', fontSize: 13},
+                        axisLabel: {color: colorE, fontWeight: 'bold', fontSize: fAnio},
                         axisTick: {show: false},
                         axisLine: {show: false}
                     },
@@ -3846,8 +3876,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                     return '{n|Alertas}\\n{v|' + p.value + '}';
                                 },
                                 rich: {
-                                    n: {fontSize: 11, color: textoA, lineHeight: 12, align: 'center'},
-                                    v: {fontSize: 14, fontWeight: 'bold', color: textoA, align: 'center'}
+                                    n: {fontSize: fNombre, color: textoA, lineHeight: 12, align: 'center'},
+                                    v: {fontSize: fValor, fontWeight: 'bold', color: textoA, align: 'center'}
                                 }
                             },
                             labelLayout: {hideOverlap: true},
@@ -3876,8 +3906,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                     return '{n|Emergencias}\\n{v|' + p.value + '}';
                                 },
                                 rich: {
-                                    n: {fontSize: 11, color: textoE, lineHeight: 12, align: 'center'},
-                                    v: {fontSize: 14, fontWeight: 'bold', color: textoE, align: 'center'}
+                                    n: {fontSize: fNombre, color: textoE, lineHeight: 12, align: 'center'},
+                                    v: {fontSize: fValor, fontWeight: 'bold', color: textoE, align: 'center'}
                                 }
                             },
                             labelLayout: {hideOverlap: true},
@@ -3885,6 +3915,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                         }
                     ]
                 });
+                c.resize();
             }
 
             dibujar('echart-barras-alertas-25', '2025',
@@ -3895,6 +3926,17 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     datos.alertas_26, datos.emergencias_26,
                     datos.color_a26, datos.color_e26,
                     datos.texto_a26, datos.texto_e26);
+
+            if (!window.__alertasResizeBound) {
+                window.__alertasResizeBound = true;
+                window.addEventListener('resize', function () {
+                    ['echart-barras-alertas-25', 'echart-barras-alertas-26'].forEach(function (id) {
+                        const inst = echarts.getInstanceByDom(document.getElementById(id));
+                        if (inst) { inst.resize(); }
+                    });
+                });
+            }
+
             return window.dash_clientside.no_update;
         }
         """,
@@ -4372,7 +4414,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 // su contenido (ver abajo) y eso hay que conocerlo desde la
                 // primera página, no solo desde la segunda en adelante.
                 const lienzos = [];
-                for (const idPag of ['pdf-pagina-1', 'pdf-pagina-2', 'pdf-pagina-3', 'pdf-pagina-4']) {
+                for (const idPag of ['pdf-pagina-1', 'pdf-pagina-2', 'pdf-pagina-3']) {
                     const bloque = document.getElementById(idPag);
                     if (!bloque) { continue; }
                     lienzos.push(await html2canvas(bloque, {
@@ -4383,19 +4425,14 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     }));
                 }
 
-                const margen = 8;
+                const margenX = 8;
+                const margenY = 5;
                 let pdf = null;
                 lienzos.forEach(function (lienzo) {
-                    // Orientación según la forma real del contenido, en vez
-                    // de horizontal fija para las tres: la página de KPIs +
-                    // episodios es ancha y corta y cabe bien en horizontal,
-                    // pero la del mapa y la de las bitácoras apilan tarjetas
-                    // completas y salen más altas que anchas — en horizontal
-                    // se ahogan de márgenes en los costados para no
-                    // desbordar por arriba/abajo. Cada hoja usa la que le
-                    // deje menos espacio en blanco.
-                    const vertical = lienzo.height > lienzo.width;
-                    const orientacion = vertical ? 'p' : 'l';
+                    // Todas las hojas en vertical (A4 portrait), con el
+                    // contenido alineado arriba para no dejar tanto espacio
+                    // en blanco en la parte superior.
+                    const orientacion = 'p';
 
                     if (!pdf) {
                         pdf = new jspdf.jsPDF(orientacion, 'mm', 'a4');
@@ -4405,18 +4442,18 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
                     const anchoPag = pdf.internal.pageSize.getWidth();
                     const altoPag = pdf.internal.pageSize.getHeight();
-                    const anchoUtil = anchoPag - margen * 2;
-                    const altoUtil = altoPag - margen * 2;
+                    const anchoUtil = anchoPag - margenX * 2;
+                    const altoUtil = altoPag - margenY * 2;
 
                     // Se escala por el lado que primero se topa con el borde,
-                    // así el bloque cabe entero en la hoja y se centra.
+                    // así el bloque cabe entero en la hoja sin salirse.
                     const escala = Math.min(anchoUtil / lienzo.width,
                                             altoUtil / lienzo.height);
                     const ancho = lienzo.width * escala;
                     const alto = lienzo.height * escala;
 
                     pdf.addImage(lienzo.toDataURL('image/png'), 'PNG',
-                                 (anchoPag - ancho) / 2, (altoPag - alto) / 2, ancho, alto);
+                                 (anchoPag - ancho) / 2, margenY, ancho, alto);
                 });
 
                 if (!pdf) { throw new Error('No hay páginas que exportar.'); }
