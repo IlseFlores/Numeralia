@@ -165,7 +165,7 @@ ESCALA_EPISODIOS_ANIO_ACTUAL = escala_serie(COLOR_ANIO_ACTUAL, luminancia_minima
 SEVERIDAD_TINTES = {
     1: '#FFB300',   # Precontingencia atmosférica
     2: '#EF6C00',   # Contingencia atmosférica Fase I
-    3: '#FC3508',   # Contingencia atmosférica Fase II
+    3: '#FF0000',   # Contingencia atmosférica Fase II
     4: '#3d0082',   # Contingencia atmosférica Fase III
 }
 
@@ -174,7 +174,7 @@ PLOTLY_TEMPLATE = go.layout.Template(
     layout=dict(
         paper_bgcolor=COLOR_CARD,
         plot_bgcolor=COLOR_CARD,
-        font=dict(family='Inter, Segoe UI, sans-serif', color=COLOR_TEXT, size=13),
+        font=dict(family='Montserrat, sans-serif', color=COLOR_TEXT, size=13),
         colorway=[COLOR_ANIO_ACTUAL, COLOR_ANIO_PREVIO, COLOR_GRIS],
         xaxis=dict(gridcolor='#eef0f3', zerolinecolor='#d7dbe2', linecolor='#d7dbe2'),
         yaxis=dict(gridcolor='#eef0f3', zerolinecolor='#d7dbe2', linecolor='#d7dbe2'),

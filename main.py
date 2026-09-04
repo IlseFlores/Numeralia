@@ -1742,7 +1742,7 @@ def _fig_a_base64(fig, ancho: int = 1000, alto: int = 520):
     captura por JavaScript, que puede o no funcionar.
     """
     try:
-        datos = fig.to_image(format='png', width=ancho, height=alto, scale=2)
+        datos = fig.to_image(format='png', width=ancho, height=alto, scale=1.5)
         return 'data:image/png;base64,' + base64.b64encode(datos).decode('ascii')
     except Exception as e:
         print(f"Nota: No se pudo pre-generar la imagen del mapa para el PDF: {e}")
@@ -2163,7 +2163,7 @@ def _kpi_alertas_emergencias(df_alertas: pd.DataFrame, col_2026: str):
                      style={'flex': '1', 'minWidth': '0'}),
             html.Div(style={'width': '1px', 'backgroundColor': COLOR_GRIS_100,
                             'alignSelf': 'stretch'}),
-            html.Div(_kpi_dato('Emergencias', emergencias, '#FC3508'),
+            html.Div(_kpi_dato('Emergencias', emergencias, '#FF0000'),
                      style={'flex': '1', 'minWidth': '0'}),
         ], style={'display': 'flex', 'gap': '14px', 'alignItems': 'center',
                   'height': '100%'}), style=_KPI_CUERPO),
@@ -2878,7 +2878,7 @@ def _tabla_paginada(df: pd.DataFrame, id_tabla: str, columna_color: str = None,
         style_table={'overflowX': 'auto'},
         style_header={'backgroundColor': '#e8edef', 'color': '#173d4c', 'fontWeight': '700',
                       'textAlign': 'left', 'padding': '8px 10px', 'border': 'none'},
-        style_cell={'padding': '8px 10px', 'fontFamily': 'Inter, Segoe UI, sans-serif', 'fontSize': '15px',
+        style_cell={'padding': '8px 10px', 'fontFamily': 'Montserrat, sans-serif', 'fontSize': '15px',
                     'color': COLOR_GRIS_MUTE, 'textAlign': 'left', 'minWidth': '90px', 'maxWidth': '240px',
                     'overflow': 'hidden', 'textOverflow': 'ellipsis', 'border': f'1px solid {COLOR_GRIS_100}'},
         style_data_conditional=style_data_conditional,
@@ -2887,11 +2887,15 @@ def _tabla_paginada(df: pd.DataFrame, id_tabla: str, columna_color: str = None,
 
 
 def _ordenar_por_no_desc(df: pd.DataFrame) -> pd.DataFrame:
-    """Ordena por la columna 'No' (primera columna) de mayor a menor, si es numérica."""
+    """Ordena por la columna 'No' (primera columna) de mayor a menor, si es numérica.
+    Descarta filas vacías que suelen quedar al final de la hoja de cálculo."""
     if df.empty:
         return df
     col_no = df.columns[0]
     d = df.copy()
+    d = d[d[col_no].notna() & d[col_no].astype(str).str.strip().ne('')]
+    if d.empty:
+        return d
     d['_no_num'] = pd.to_numeric(d[col_no], errors='coerce')
     d = d.sort_values('_no_num', ascending=False).drop(columns='_no_num')
     return d
@@ -2919,15 +2923,16 @@ def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
             _icono_descarga('btn-pdf-alertas'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
                   'marginBottom': '4px'}),
-        html.Div('Eventos extraordinarios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco',
+        html.Div('Eventos extraordinarios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
             html.Div(
                 _tabla_paginada(df, 'tabla-bitacora-alertas', columna_color=col_fase, mapa_color=mapa_color,
                                 texto_claro_valores=('Emergencia',)),
                 style={'position': 'relative'}),
-            html.Div('Se muestran los últimos 10 registros, puedes descargar en el ícono de la '
-                      'parte superior derecha o avanzar con las flechas en la parte inferior izquierda.',
+            html.Div('Se muestran los últimos 10 registros. Para consultar el listado completo, '
+'utiliza el ícono ubicado en la esquina superior derecha, o desplázate entre '
+'registros mediante las flechas de la esquina inferior derecha.',
                       style={'position': 'absolute', 'bottom': '12px', 'left': '10px',
                              'color': COLOR_GRIS_MUTE, 'fontSize': '11px', 'zIndex': 2}),
         ], className='bitacora-contenido'),
@@ -2983,8 +2988,9 @@ def _card_bitacora_episodios(df_episodios_2026_raw: pd.DataFrame):
                 _tabla_paginada(df, 'tabla-bitacora-episodios', columna_color=col_evento, mapa_color=mapa_color,
                                 texto_claro_valores=texto_claro),
                 style={'position': 'relative'}),
-            html.Div('Se muestran los últimos 10 registros, puedes descargar en el ícono de la '
-                      'parte superior derecha o avanzar con las flechas en la parte inferior izquierda.',
+            html.Div('Se muestran los últimos 10 registros. Para consultar el listado completo, '
+'utiliza el ícono ubicado en la esquina superior derecha, o desplázate entre '
+'registros mediante las flechas de la esquina inferior derecha.',
                       style={'position': 'absolute', 'bottom': '12px', 'left': '10px',
                              'color': COLOR_GRIS_MUTE, 'fontSize': '11px', 'zIndex': 2}),
         ], className='bitacora-contenido'),
@@ -3316,13 +3322,36 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
     {%metas%}
     <title>{%title%}</title>
     {%favicon%}
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
     {%css%}
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script>
+      if (typeof echarts !== 'undefined') {
+        echarts.registerTheme('montserrat', {textStyle: {fontFamily: 'Montserrat, sans-serif'}});
+      }
+    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
+      * {
+        font-family: 'Montserrat', sans-serif !important;
+      }
       html, body {
         margin: 0;
+      }
+      /* Paginación de tablas bitácora más pequeña */
+      .previous-next-container,
+      .previous-next-container * {
+        font-size: 10px !important;
+      }
+      .previous-next-container button {
+        width: 20px !important;
+        height: 20px !important;
+        padding: 0 !important;
+      }
+      .previous-next-container button svg {
+        width: 10px !important;
+        height: 10px !important;
       }
       /* Ancho de escritorio forzado mientras html2canvas toma la foto, para
          que el PDF salga igual desde un celular que desde una computadora.
@@ -3413,7 +3442,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         'backgroundColor': COLOR_BG,
         'minHeight': '100vh',
         'padding': '28px 36px',
-        'fontFamily': 'Inter, Segoe UI, sans-serif',
+        'fontFamily': 'Montserrat, sans-serif',
         'color': COLOR_TEXT,
     })
 
@@ -3541,7 +3570,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 if (!el) { return; }
 
                 let chart = echarts.getInstanceByDom(el);
-                if (!chart) { chart = echarts.init(el, null, {renderer: 'svg'}); }
+                if (!chart) { chart = echarts.init(el, 'montserrat', {renderer: 'svg'}); }
 
                 // Modo compacto para tablet y celular: tipografía y márgenes
                 // internos más chicos, que es lo que permite bajar el alto de
@@ -3834,7 +3863,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 const el = document.getElementById(divId);
                 if (!el) return;
                 let c = echarts.getInstanceByDom(el);
-                if (!c) c = echarts.init(el, null, {renderer: 'svg'});
+                if (!c) c = echarts.init(el, 'montserrat', {renderer: 'svg'});
 
                 const total = (valorA || 0) + (valorE || 0) || 1;
                 // Por debajo del 12 % del total el segmento es demasiado angosto
@@ -3845,6 +3874,17 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     animation: false,
                     grid: {top: 8, bottom: 8, left: 8, right: 8, containLabel: true},
                     xAxis: {type: 'value', show: false},
+                    title: {
+                        text: String(total),
+                        right: 10,
+                        top: 'middle',
+                        textStyle: {
+                            color: anio === '2026' ? colorE : '#173d4c',
+                            fontSize: fValor,
+                            fontWeight: 'bold'
+                        },
+                        padding: 0
+                    },
                     yAxis: {
                         type: 'category',
                         data: [anio],
@@ -4175,7 +4215,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 overlay.style.display = 'flex';
                 overlay.style.alignItems = 'center';
                 overlay.style.justifyContent = 'center';
-                overlay.style.fontFamily = 'Inter, Segoe UI, sans-serif';
+                overlay.style.fontFamily = 'Montserrat, sans-serif';
                 overlay.style.fontSize = '16px';
                 overlay.style.color = '#465055';
                 overlay.textContent = 'Generando PDF...';
@@ -4341,7 +4381,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     format: 'png',
                     width: Math.round(caja.width) || 900,
                     height: Math.round(caja.height) || 400,
-                    scale: 2
+                    scale: 1.5
                 };
                 let url = null;
 
@@ -4403,7 +4443,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     // con 'width:100%' + 'height:auto' (ver 'sustituir').
                     const caja = div.getBoundingClientRect();
                     const url = inst.getDataURL({
-                        type: 'png', pixelRatio: 2, backgroundColor: '#ffffff'
+                        type: 'png', pixelRatio: 1.5, backgroundColor: '#ffffff'
                     });
                     capturasEpisodios.push({div, url, ancho: caja.width, alto: caja.height});
                 } catch (e) { console.warn('ECharts ' + id, e); }
@@ -4429,7 +4469,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     const bloque = document.getElementById(idPag);
                     if (!bloque) { continue; }
                     lienzos.push(await html2canvas(bloque, {
-                        scale: 2, backgroundColor: '#ffffff',
+                        scale: 1.5, backgroundColor: '#ffffff',
                         useCORS: true, logging: false,
                         windowWidth: bloque.scrollWidth,
                         windowHeight: bloque.scrollHeight
@@ -4463,7 +4503,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     const ancho = lienzo.width * escala;
                     const alto = lienzo.height * escala;
 
-                    pdf.addImage(lienzo.toDataURL('image/png'), 'PNG',
+                    pdf.addImage(lienzo.toDataURL('image/jpeg', 0.85), 'JPEG',
                                  (anchoPag - ancho) / 2, margenY, ancho, alto);
                 });
 
