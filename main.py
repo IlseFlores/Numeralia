@@ -3874,6 +3874,17 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     animation: false,
                     grid: {top: 8, bottom: 8, left: 8, right: 8, containLabel: true},
                     xAxis: {type: 'value', show: false},
+                    title: {
+                        text: String(total),
+                        right: 10,
+                        top: 'middle',
+                        textStyle: {
+                            color: anio === '2026' ? colorE : '#173d4c',
+                            fontSize: fValor,
+                            fontWeight: 'bold'
+                        },
+                        padding: 0
+                    },
                     yAxis: {
                         type: 'category',
                         data: [anio],
