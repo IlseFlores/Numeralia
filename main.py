@@ -1651,7 +1651,7 @@ def _encabezado_reporte():
             html.Div([
                 html.H1('Reporte Diario de Calidad del Aire', className='titulo-reporte', style={
                     'margin': '0', 'fontSize': '32px', 'fontWeight': '600',
-                    'color': '#173d4c', 'textAlign': 'center', 'lineHeight': '1.15',
+                    'color': '#111C51', 'textAlign': 'center', 'lineHeight': '1.15',
                 }),
                 html.Div(_fecha_encabezado(), className='fecha-reporte', style={
                     'color': COLOR_2026, 'fontSize': '20px', 'fontWeight': '600',
@@ -1916,7 +1916,7 @@ def _card_serie_mensual_2025(df_resumen: pd.DataFrame):
             html.Span('2025', style={'color': COLOR_2025, 'fontWeight': '800'}),
             '-',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
-        ], style={'color': '#173d4c', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
+        ], style={'color': '#111C51', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div([
             f'Acumulado mensual de días en los que la calidad del aire fue buena o aceptable según '
             f'el Índice Aire y Salud (NOM-172-SEMARNAT-2023), considerando el valor más alto '
@@ -2619,7 +2619,7 @@ def _card_imeca(df_imeca: pd.DataFrame):
                   'borderLeft': f'4px solid {color}', '--color-acento': color})
 
     return html.Div([
-        html.Div('IMECA Máximo Registrado', style={'color': '#173d4c', 'fontWeight': '700',
+        html.Div('IMECA Máximo Registrado', style={'color': '#111C51', 'fontWeight': '700',
                                                      'fontSize': '17px', 'marginBottom': '4px'}),
         html.Div('Valor más alto del índice en el año',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '14px', 'marginBottom': '12px'}),
@@ -2915,13 +2915,12 @@ def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
             ], id='bitacora-alertas-header',
                      className='bitacora-titulo',
                      n_clicks=0,
-                     style={'flex': '1', 'color': '#173d4c', 'fontWeight': '700',
+                     style={'flex': '1', 'color': '#111C51', 'fontWeight': '700',
                             'fontSize': '18px'}),
             _icono_descarga('btn-pdf-alertas'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
                   'marginBottom': '4px'}),
-        html.Div('Eventos extraordinarios decretados de acuerdo con el Programa de Reducción de Emisiones '
-                  'Contaminantes a la Atmósfera (PRECA) vigente.',
+        html.Div('Eventos extraordinarios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
             html.Div(
@@ -2978,8 +2977,7 @@ def _card_bitacora_episodios(df_episodios_2026_raw: pd.DataFrame):
             _icono_descarga('btn-pdf-episodios'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
                   'marginBottom': '4px'}),
-        html.Div('Episodios decretados de acuerdo con el Programa de Reducción de Emisiones '
-                  'Contaminantes a la Atmósfera (PRECA) vigente.',
+        html.Div('Episodios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
             html.Div(
@@ -3130,7 +3128,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             html.Span('2025', style={'color': COLOR_2025, 'fontWeight': '800'}),
             '-',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
-        ], style={'color': '#173d4c', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
+        ], style={'color': '#111C51', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div('Episodios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
@@ -3168,7 +3166,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             html.Span('2025', style={'color': COLOR_2025, 'fontWeight': '800'}),
             '-',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
-        ], style={'color': '#173d4c', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
+        ], style={'color': '#111C51', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div('Episodios derivados de eventos extraordinarios',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         # Tabla izquierda + barras horizontales derechas en el mismo cuadro
@@ -3226,7 +3224,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             ' vs ',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
             ' por estación de monitoreo',
-        ], style={'color': '#173d4c', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
+        ], style={'color': '#111C51', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
         html.Div([
             html.Div([
                 dcc.Graph(id='mapa-grafico', figure=fig_mapa,
@@ -3271,7 +3269,13 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         ], className='fila-apilable', style={'display': 'flex', 'gap': '10px', 'flexWrap': 'wrap'}),
         html.P([
             "El color y tamaño de cada burbuja representan el ",
-            html.B("cambio en días de buena calidad (2026 vs 2025)"),
+            html.B([
+                "cambio en días de buena calidad (",
+                html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
+                ' vs ',
+                html.Span('2025', style={'color': COLOR_2025, 'fontWeight': '800'}),
+                ')',
+            ]),
             " por estación: ",
             html.Span("aqua", style={'color': COLOR_2026, 'fontWeight': '700'}),
             " = tuvo más días de buena calidad que el año pasado (mejora), ",
