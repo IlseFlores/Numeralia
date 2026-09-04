@@ -2,6 +2,9 @@ name: numeralia
 
 services:
   numeralia:
+    # Actions publica la imagen en GHCR; NUMERALIA_IMAGE permite cambiar de
+    # registry con solo mover una variable. Sin imagen disponible, build la construye.
+    image: ${NUMERALIA_IMAGE:-ghcr.io/ilseflores/numeralia}:${NUMERALIA_IMAGE_TAG:-latest}
     build:
       context: .
       target: runtime

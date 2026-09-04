@@ -1,0 +1,159 @@
+name: deploy
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Tag de la release a desplegar, por ejemplo v1.0.1
+        required: true
+        type: string
+
+# Solo el job de imagen escribe: packages para subirla al registry.
+permissions:
+  contents: read
+  packages: write
+
+# Un despliegue a la vez; no cancelar el que está en curso.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+    steps:
+      - id: check
+        env:
+          TAG: ${{ github.event.release.tag_name || github.event.inputs.version }}
+        run: |
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$'; then
+            echo "Tag inválido: $TAG" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  tests:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tests dentro de la misma imagen del proyecto
+        run: |
+          docker build --target test -t numeralia-tests .
+          docker run --rm numeralia-tests
+
+  image:
+    needs: [version, tests]
+    runs-on: ubuntu-latest
+    env:
+      BASE: ${{ vars.NUMERALIA_IMAGE || 'ghcr.io/ilseflores/numeralia' }}
+    outputs:
+      ref: ${{ steps.name.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: name
+        run: echo "ref=$(printf '%s' "$BASE" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - name: Sesión contra el registry
+        # Si BASE apunta a otro registry, cambiar login y credenciales aquí.
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runtime
+          push: true
+          tags: ${{ steps.name.outputs.ref }}:${{ needs.version.outputs.tag }}
+
+  deploy:
+    needs: [version, image]
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_REF: ${{ needs.image.outputs.ref }}
+      TAG: ${{ needs.version.outputs.tag }}
+      SSH_HOST: ${{ vars.DROPLET_HOST }}
+      SSH_USER: ${{ vars.DROPLET_USER }}
+      REMOTE_PATH: ${{ vars.DROPLET_PATH }}
+      SSH_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      SSH_HOST_KEY: ${{ vars.DROPLET_SSH_HOST_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar acceso SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$SSH_HOST_KEY" >> ~/.ssh/known_hosts
+
+      - name: Leer la versión en ejecución
+        id: previous
+        run: |
+          anterior=$(ssh -o BatchMode=yes -i ~/.ssh/id_deploy \
+            "$SSH_USER@$SSH_HOST" "docker inspect -f '{{.Config.Image}}' \$(docker compose -f $REMOTE_PATH/docker-compose.yml ps -q numeralia | head -1) 2>/dev/null || true")
+          echo "imagen=$anterior" >> "$GITHUB_OUTPUT"
+          echo "Versión en ejecución: ${anterior:-ninguna}"
+
+      - name: Sincronizar el compose
+        run: |
+          scp -i ~/.ssh/id_deploy docker-compose.yml \
+            "$SSH_USER@$SSH_HOST:$REMOTE_PATH/docker-compose.yml"
+
+      - name: Publicar la nueva versión
+        run: |
+          ssh -o BatchMode=yes -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" bash -s \
+            "$IMAGE_REF" "$TAG" "$REMOTE_PATH" <<'EOF'
+          set -euo pipefail
+          imagen="$1"; etiqueta="$2"; ruta="$3"
+          cd "$ruta"
+          if ! NUMERALIA_IMAGE_TAG="$etiqueta" docker compose pull numeralia; then
+            echo "No se pudo obtener la imagen $imagen:$etiqueta" >&2
+            exit 1
+          fi
+          NUMERALIA_IMAGE_TAG="$etiqueta" docker compose up -d
+          EOF
+
+      - name: Confirmar que el dashboard levanta
+        timeout-minutes: 20
+        run: |
+          ssh -o BatchMode=yes -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" bash -s \
+            "$REMOTE_PATH" <<'EOF'
+          set -euo pipefail
+          cd "$1"
+          for _ in $(seq 1 120); do
+            cid=$(docker compose ps -q numeralia | head -1)
+            estado=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}sin-definition{{end}}' "$cid" 2>/dev/null || echo ausente)
+            echo "estado del healthcheck: $estado"
+            [ "$estado" = healthy ] && exit 0
+            [ "$estado" = unhealthy ] && exit 1
+            sleep 10
+          done
+          exit 1
+          EOF
+
+      - name: Retroceder a la versión anterior si algo falló
+        if: failure()
+        env:
+          PREVIOUS: ${{ steps.previous.outputs.imagen }}
+        run: |
+          ssh -o BatchMode=yes -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" bash -s \
+            "$PREVIOUS" "$REMOTE_PATH" <<'EOF'
+          set -euo pipefail
+          anterior="$1"; ruta="$2"
+          cd "$ruta"
+          if [ -z "$anterior" ] || [ "$anterior" = "null" ]; then
+            echo "No había versión anterior; dejando el servicio detenido para revisión."
+            docker compose down
+            exit 0
+          fi
+          repo="${anterior%:*}"; etiqueta="${anterior##*:}"
+          echo "Regresando a $repo:$etiqueta"
+          NUMERALIA_IMAGE="$repo" NUMERALIA_IMAGE_TAG="$etiqueta" docker compose up -d
+          EOF
