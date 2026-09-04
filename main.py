@@ -3637,7 +3637,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                 if (p.value / maxTotal < 0.09) {
                                     return '{n|' + s.nombre + ':}{v| ' + p.value + '}';
                                 }
-                                return '{v|' + p.value + '}\\n{n|' + s.nombre + ':}';
+                                return '{n|' + s.nombre + ':}\\n{v|' + p.value + '}';
                             },
                             // El color del texto lo decide el tono del relleno,
                             // que depende del año y del contaminante: hay tonos
