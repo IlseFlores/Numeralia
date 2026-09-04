@@ -32,6 +32,18 @@ CAMPOS_CUENTA_SERVICIO = (
 _CAMPOS_MINIMOS = ('private_key', 'client_email', 'token_uri')
 
 
+def normalizar_ruta_base(valor: str) -> str:
+    """Normaliza el prefijo público de Dash (siempre con ``/`` a ambos lados)."""
+    ruta = valor.strip()
+    if not ruta or ruta == '/':
+        return '/'
+    if '://' in ruta or '?' in ruta or '#' in ruta:
+        raise ValueError(
+            'NUMERALIA_RUTA_BASE debe ser una ruta, por ejemplo /reporte-diario/.'
+        )
+    return f"/{ruta.strip('/')}/"
+
+
 def cargar_dotenv(base: Optional[Path] = None) -> Optional[Path]:
     """
     Carga el archivo .env si existe. Se busca junto al paquete y en la carpeta
@@ -110,6 +122,7 @@ class Config:
     anio: int
     urls: Dict[str, str] = field(default_factory=dict)
     puerto_dashboard: int = 8050
+    ruta_base_dashboard: str = '/'
     carpeta_logos: str = 'logos'
     anio_criterio_nom: int = 2026
     # Cada cuánto vuelve a leer Sheets el dashboard. Iban en 20 segundos, que
@@ -165,6 +178,9 @@ class Config:
             anio=anio,
             urls=urls,
             puerto_dashboard=int(os.getenv('NUMERALIA_PUERTO', '8050')),
+            ruta_base_dashboard=normalizar_ruta_base(
+                os.getenv('NUMERALIA_RUTA_BASE', '/')
+            ),
             carpeta_logos=os.getenv('NUMERALIA_CARPETA_LOGOS', 'logos'),
             anio_criterio_nom=int(os.getenv('NUMERALIA_CRITERIO_NOM', '2026')),
             refresco_eventos_seg=int(os.getenv('NUMERALIA_REFRESCO_EVENTOS', '300')),

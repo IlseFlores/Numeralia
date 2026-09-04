@@ -1,0 +1,37 @@
+name: numeralia
+
+services:
+  numeralia:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - ${NUMERALIA_ENV_FILE:-.env}
+    environment:
+      # El puerto y el prefijo internos son estables; Nginx publica la app.
+      NUMERALIA_PUERTO: 8050
+      NUMERALIA_RUTA_BASE: /reporte-diario/
+    init: true
+    restart: unless-stopped
+    expose:
+      - "8050"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8050/reporte-diario/', timeout=5)
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      # La primera corrida procesa y actualiza las hojas antes de abrir Dash.
+      start_period: 10m
+    networks:
+      aire_jalisco_net:
+        aliases:
+          - numeralia
+
+networks:
+  aire_jalisco_net:
+    external: true
+    name: aire_jalisco_net

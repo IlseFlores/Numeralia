@@ -150,6 +150,13 @@ from main import run_full_pipeline
 acumulado = run_full_pipeline(lanzar_dashboard=False)
 ```
 
+## Desplegar en el servidor con Docker
+
+`Dockerfile` y `docker-compose.yml` construyen la imagen y mantienen el
+proceso activo. El dashboard queda preparado para publicarse en
+`/reporte-diario/` a través del Nginx de Aire Jalisco; su puerto no se publica
+directamente en el servidor.
+
 ## Correr los tests
 
 ```bash

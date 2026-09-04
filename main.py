@@ -3294,7 +3294,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
     # El meta 'viewport' es lo que hace que un teléfono renderice a su ancho
     # real. Sin él asume 980px y luego encoge la página entera, así que el
     # reporte se ve diminuto por más medias queries que se escriban.
-    app = Dash(__name__, meta_tags=[
+    app = Dash(__name__, url_base_pathname=CONFIG.ruta_base_dashboard, meta_tags=[
         {'name': 'viewport', 'content': 'width=device-width, initial-scale=1'},
     ])
     app.title = 'Reporte Diario de Calidad del Aire 2026'
