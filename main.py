@@ -3859,7 +3859,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             function dibujar(divId, anio,
                              valorA, valorE,
                              colorA, colorE,
-                             textoA, textoE) {
+                             textoA, textoE, maxTotal) {
                 const el = document.getElementById(divId);
                 if (!el) return;
                 let c = echarts.getInstanceByDom(el);
@@ -3873,7 +3873,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 c.setOption({
                     animation: false,
                     grid: {top: 8, bottom: 8, left: 8, right: 8, containLabel: true},
-                    xAxis: {type: 'value', show: false},
+                    xAxis: {type: 'value', show: false, max: maxTotal},
                     title: {
                         text: String(total),
                         right: 10,
@@ -3958,14 +3958,18 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 c.resize();
             }
 
+            const total25 = (datos.alertas_25 || 0) + (datos.emergencias_25 || 0);
+            const total26 = (datos.alertas_26 || 0) + (datos.emergencias_26 || 0);
+            const maxTotal = Math.max(total25, total26) * 1.15;
+
             dibujar('echart-barras-alertas-25', '2025',
                     datos.alertas_25, datos.emergencias_25,
                     datos.color_a25, datos.color_e25,
-                    datos.texto_a25, datos.texto_e25);
+                    datos.texto_a25, datos.texto_e25, maxTotal);
             dibujar('echart-barras-alertas-26', '2026',
                     datos.alertas_26, datos.emergencias_26,
                     datos.color_a26, datos.color_e26,
-                    datos.texto_a26, datos.texto_e26);
+                    datos.texto_a26, datos.texto_e26, maxTotal);
 
             if (!window.__alertasResizeBound) {
                 window.__alertasResizeBound = true;
