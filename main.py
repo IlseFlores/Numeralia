@@ -4073,8 +4073,19 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
             function esCelular() { return window.innerWidth <= UMBRAL_CELULAR; }
 
+            // Desde Dash 3, dcc.Graph carga plotly.js de forma diferida: la
+            // primera pasada de este callback (disparada por 'mapa-cargado'
+            // al montar la página) puede llegar antes de que el global
+            // 'Plotly' exista y revienta con ReferenceError. Se reintenta
+            // hasta que cargue, con tope, y recién entonces se aplica el
+            // zoom.
+            let intentos = 0;
             function ajustar() {
                 const zoom = esCelular() ? ZOOM_CELULAR : ZOOM_ESCRITORIO;
+                if (typeof Plotly === 'undefined') {
+                    if (intentos++ < 40) { setTimeout(ajustar, 150); }
+                    return;
+                }
                 Plotly.relayout('mapa-grafico', {'map.zoom': zoom});
             }
 
