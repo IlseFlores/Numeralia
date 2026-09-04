@@ -69,6 +69,23 @@ def _recortar_al_ancho(pdf: FPDF, texto: str, ancho: float, holgura: float = 1) 
     return recortado
 
 
+def _lineas_ajustadas(pdf: FPDF, texto: str, ancho: float) -> list[str]:
+    """
+    Envuelve el texto al ancho de la columna (como haría un procesador de
+    texto), en vez de recortarlo: así celdas largas como 'Zonas de
+    Influencia' no pierden información, solo ocupan más de una línea.
+    """
+    saneado = _sin_acentos_latin1(str(texto)).strip()
+    resultado = list(pdf.multi_cell(ancho, None, saneado,
+                                    dry_run=True, output="LINES"))
+    # Datos como 'Zonas de Influencia' a veces traen saltos de línea sueltos
+    # al final (copiados de Excel): sin esto dejaban un renglón en blanco
+    # que inflaba el alto de la fila entera con espacio vacío.
+    while len(resultado) > 1 and not resultado[-1].strip():
+        resultado.pop()
+    return resultado or ['']
+
+
 def anchos_proporcionales(pdf: FPDF, df: pd.DataFrame,
                           tamano_letra: int = TAMANO_LETRA_TABLA) -> list:
     """
@@ -181,16 +198,43 @@ def generar_pdf_tabla(df: pd.DataFrame, titulo: str, subtitulo: str = '',
 
     _encabezados()
 
+    # Interlineado real de una línea de texto (tipo Excel: apretado, no el
+    # alto cómodo de una fila de una sola línea). ALTO_FILA sigue siendo el
+    # mínimo de una fila para que las filas de una sola línea no se vean
+    # apretadas.
+    alto_linea = pdf.font_size * 1.35
+
     for _, row in df.iterrows():
+        # Cuántas líneas necesita cada columna para no recortar el texto
+        # (p.ej. 'Zonas de Influencia' suele ser la más larga) y de ahí el
+        # alto real de la fila: todas las celdas de la fila comparten ese
+        # alto para que las líneas de la tabla sigan alineadas.
+        lineas_por_columna = [_lineas_ajustadas(pdf, row[c], anchos[i])
+                              for i, c in enumerate(cols)]
+        num_lineas = max(len(lineas) for lineas in lineas_por_columna)
+        alto_fila = max(ALTO_FILA, alto_linea * num_lineas)
+        alto_por_linea_celda = alto_fila / num_lineas
+
         # Salto de página manual para poder repetir los encabezados arriba.
-        if pdf.get_y() + ALTO_FILA > pdf.h - 15:
+        if pdf.get_y() + alto_fila > pdf.h - 15:
             pdf.add_page()
             _encabezados()
+
+        x_inicio, y_inicio = pdf.get_x(), pdf.get_y()
         for i, c in enumerate(cols):
-            pdf.cell(anchos[i], ALTO_FILA,
-                     _recortar_al_ancho(pdf, row[c], anchos[i], holgura=2),
-                     border=1, align='C')
-        pdf.ln()
+            x_col = x_inicio + sum(anchos[:i])
+            # Borde de la celda completo (alto de la fila), aparte del texto:
+            # así una columna con menos líneas que 'Zonas de Influencia' no
+            # deja un renglón en blanco con su propio borde a la mitad,
+            # que es lo que se veía como una línea separadora de más.
+            pdf.rect(x_col, y_inicio, anchos[i], alto_fila)
+            # El texto se centra verticalmente dentro de ese alto.
+            lineas = lineas_por_columna[i]
+            y_texto = y_inicio + (num_lineas - len(lineas)) / 2 * alto_por_linea_celda
+            pdf.set_xy(x_col, y_texto)
+            pdf.multi_cell(anchos[i], alto_por_linea_celda, '\n'.join(lineas),
+                           border=0, align='C', new_x=XPos.LEFT, new_y=YPos.TOP)
+        pdf.set_xy(x_inicio, y_inicio + alto_fila)
 
     # mkstemp y no mktemp: este último está obsoleto y deja una ventana entre
     # que devuelve el nombre y que alguien lo crea.
