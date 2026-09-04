@@ -1742,7 +1742,7 @@ def _fig_a_base64(fig, ancho: int = 1000, alto: int = 520):
     captura por JavaScript, que puede o no funcionar.
     """
     try:
-        datos = fig.to_image(format='png', width=ancho, height=alto, scale=2)
+        datos = fig.to_image(format='png', width=ancho, height=alto, scale=1.5)
         return 'data:image/png;base64,' + base64.b64encode(datos).decode('ascii')
     except Exception as e:
         print(f"Nota: No se pudo pre-generar la imagen del mapa para el PDF: {e}")
@@ -4330,7 +4330,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     format: 'png',
                     width: Math.round(caja.width) || 900,
                     height: Math.round(caja.height) || 400,
-                    scale: 2
+                    scale: 1.5
                 };
                 let url = null;
 
@@ -4392,7 +4392,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     // con 'width:100%' + 'height:auto' (ver 'sustituir').
                     const caja = div.getBoundingClientRect();
                     const url = inst.getDataURL({
-                        type: 'png', pixelRatio: 2, backgroundColor: '#ffffff'
+                        type: 'png', pixelRatio: 1.5, backgroundColor: '#ffffff'
                     });
                     capturasEpisodios.push({div, url, ancho: caja.width, alto: caja.height});
                 } catch (e) { console.warn('ECharts ' + id, e); }
@@ -4418,7 +4418,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     const bloque = document.getElementById(idPag);
                     if (!bloque) { continue; }
                     lienzos.push(await html2canvas(bloque, {
-                        scale: 2, backgroundColor: '#ffffff',
+                        scale: 1.5, backgroundColor: '#ffffff',
                         useCORS: true, logging: false,
                         windowWidth: bloque.scrollWidth,
                         windowHeight: bloque.scrollHeight
@@ -4452,7 +4452,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     const ancho = lienzo.width * escala;
                     const alto = lienzo.height * escala;
 
-                    pdf.addImage(lienzo.toDataURL('image/png'), 'PNG',
+                    pdf.addImage(lienzo.toDataURL('image/jpeg', 0.85), 'JPEG',
                                  (anchoPag - ancho) / 2, margenY, ancho, alto);
                 });
 
