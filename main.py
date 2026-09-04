@@ -3872,19 +3872,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
                 c.setOption({
                     animation: false,
-                    grid: {top: 8, bottom: 8, left: 8, right: 8, containLabel: true},
+                    grid: {top: 8, bottom: 8, left: 8, right: 34, containLabel: true},
                     xAxis: {type: 'value', show: false, max: maxTotal},
-                    title: {
-                        text: String(total),
-                        right: 10,
-                        top: 'middle',
-                        textStyle: {
-                            color: anio === '2026' ? colorE : '#173d4c',
-                            fontSize: fValor,
-                            fontWeight: 'bold'
-                        },
-                        padding: 0
-                    },
                     yAxis: {
                         type: 'category',
                         data: [anio],
@@ -3956,6 +3945,29 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     ]
                 });
                 c.resize();
+
+                // Total pegado al final de la barra: se calcula el pixel real
+                // del extremo de la barra (convertToPixel) y se pone ahí un
+                // graphic de texto, para que quede junto a la barrita y no
+                // fijo en el borde derecho del lienzo.
+                const px = c.convertToPixel({xAxisIndex: 0, yAxisIndex: 0}, [total, anio]);
+                if (px) {
+                    c.setOption({
+                        graphic: [{
+                            type: 'text',
+                            left: px[0] + 6,
+                            top: px[1],
+                            style: {
+                                text: String(total),
+                                fill: anio === '2026' ? colorE : '#173d4c',
+                                fontSize: fValor,
+                                fontWeight: 'bold',
+                                textVerticalAlign: 'middle'
+                            },
+                            z: 10
+                        }]
+                    });
+                }
             }
 
             const total25 = (datos.alertas_25 || 0) + (datos.emergencias_25 || 0);
@@ -3971,15 +3983,22 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     datos.color_a26, datos.color_e26,
                     datos.texto_a26, datos.texto_e26, maxTotal);
 
-            if (!window.__alertasResizeBound) {
-                window.__alertasResizeBound = true;
-                window.addEventListener('resize', function () {
-                    ['echart-barras-alertas-25', 'echart-barras-alertas-26'].forEach(function (id) {
-                        const inst = echarts.getInstanceByDom(document.getElementById(id));
-                        if (inst) { inst.resize(); }
-                    });
+            window.removeEventListener('resize', window.__alertasResizeHandler);
+            window.__alertasResizeHandler = function () {
+                ['echart-barras-alertas-25', 'echart-barras-alertas-26'].forEach(function (id) {
+                    const inst = echarts.getInstanceByDom(document.getElementById(id));
+                    if (inst) { inst.resize(); }
                 });
-            }
+                dibujar('echart-barras-alertas-25', '2025',
+                        datos.alertas_25, datos.emergencias_25,
+                        datos.color_a25, datos.color_e25,
+                        datos.texto_a25, datos.texto_e25, maxTotal);
+                dibujar('echart-barras-alertas-26', '2026',
+                        datos.alertas_26, datos.emergencias_26,
+                        datos.color_a26, datos.color_e26,
+                        datos.texto_a26, datos.texto_e26, maxTotal);
+            };
+            window.addEventListener('resize', window.__alertasResizeHandler);
 
             return window.dash_clientside.no_update;
         }
