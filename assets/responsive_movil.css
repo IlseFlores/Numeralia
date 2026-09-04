@@ -44,11 +44,10 @@
   }
 
   /* IMECA Máximo: los dos años se apilan uno abajo del otro en vez de lado a
-     lado, para que la tarjeta se pueda leer sin apretarse. 2026 va arriba
-     porque es el año en curso; en el DOM 2025 va primero, así que se invierte
-     con 'column-reverse' en vez de reordenar el HTML. */
+     lado, para que la tarjeta se pueda leer sin apretarse. En celular 2025
+     va primero, luego 2026. */
   .fila-imeca {
-    flex-direction: column-reverse !important;
+    flex-direction: column !important;
   }
 
   /* El acento de color pasa de borde izquierdo a borde superior: con las
@@ -61,11 +60,27 @@
     padding: 16px 18px !important;
   }
 
-  /* Encabezado: logo, título y logo uno debajo del otro. Los logos se
-     encogen porque a 77px de alto se comen la primera pantalla completa. */
+  /* Encabezado: en celular los dos logos quedan arriba uno al lado del otro
+     y el título completo debajo. */
   .fila-encabezado {
-    flex-direction: column !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
     gap: 12px !important;
+    align-items: flex-start !important;
+  }
+
+  .fila-encabezado > div:first-child,
+  .fila-encabezado > div:last-child {
+    flex: 1 1 40% !important;
+    order: 0 !important;
+    justify-content: center !important;
+    min-width: 0 !important;
+  }
+
+  .fila-encabezado > div:nth-child(2) {
+    flex: 1 1 100% !important;
+    order: 1 !important;
+    padding: 0 12px !important;
   }
 
   .fila-encabezado img {
