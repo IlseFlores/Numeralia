@@ -1650,7 +1650,7 @@ def _encabezado_reporte():
             _celda_logo(src_simaj, 'flex-start', 'logo-simaj'),
             html.Div([
                 html.H1('Reporte Diario de Calidad del Aire', className='titulo-reporte', style={
-                    'margin': '0', 'fontSize': '32px', 'fontWeight': '600',
+                    'margin': '0', 'fontSize': '32px', 'fontWeight': '700',
                     'color': '#111C51', 'textAlign': 'center', 'lineHeight': '1.15',
                 }),
                 html.Div(_fecha_encabezado(), className='fecha-reporte', style={
@@ -1666,9 +1666,8 @@ def _encabezado_reporte():
 
         # Introducción
         html.P(
-            'El Reporte Diario de Calidad del Aire presenta información acumulada '
-            'al día señalado en el encabezado. Permite conocer cómo se ha comportado '
-            'la calidad del aire.',
+            'El Reporte Diario de Calidad del Aire permite conocer cómo se ha comportado '
+            'la calidad del aire al día señalado en el encabezado. ',
             style={'color': COLOR_GRIS_MUTE, 'fontSize': '17px', 'lineHeight': '1.6',
                    'textAlign': 'center', 'maxWidth': '1000px', 'margin': '0 auto'},
         ),
@@ -1991,8 +1990,8 @@ def _tabla_detalle_estacion(estacion: str, row: pd.Series):
             className='tabla-scroll',
         style={'borderRadius': '10px', 'overflow': 'hidden', 'border': f'1px solid {COLOR_GRIS_100}'}
         ),
-        html.Div(f'Tendencia 2025 vs 2026: {_tendencia_buena(row)}', style={
-            'color': COLOR_GRIS_MUTE, 'fontSize': '14px', 'marginTop': '10px'}),
+        # html.Div(f'Tendencia 2025 vs 2026: {_tendencia_buena(row)}', style={
+        #     'color': COLOR_GRIS_MUTE, 'fontSize': '14px', 'marginTop': '10px'}),
     ])
 
 
@@ -2771,7 +2770,7 @@ def _card_eventos_activos(eventos_alertas, eventos_episodios=None):
 
     if not todos:
         cuerpo = html.Div(
-            'Sin episodios activos por el momento.',
+            'Sin episodios ni eventos activos al momento.',
             style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'textAlign': 'center',
                    'padding': '18px 0'},
         )
@@ -2828,7 +2827,7 @@ def _card_eventos_activos(eventos_alertas, eventos_episodios=None):
         cuerpo = html.Div(fichas)
 
     return html.Div([
-        html.Div('Episodios o Eventos Activos + Contingencias y Precontingencias', style=_KPI_TITULO),
+        html.Div('Episodios o Eventos Activos', style=_KPI_TITULO),
         html.Div(cuerpo, style={**_KPI_CUERPO, 'display': 'flex',
                                  'flexDirection': 'column', 'justifyContent': 'center'}),
     ], style=_KPI_CONTENEDOR)
@@ -3167,7 +3166,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             '-',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
         ], style={'color': '#111C51', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
-        html.Div('Episodios derivados de eventos extraordinarios',
+        html.Div('Episodios derivados de eventos extraordinarios de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         # Tabla izquierda + barras horizontales derechas en el mismo cuadro
         html.Div([
