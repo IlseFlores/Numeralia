@@ -150,6 +150,46 @@ from main import run_full_pipeline
 acumulado = run_full_pipeline(lanzar_dashboard=False)
 ```
 
+## Desplegar en el servidor con Docker
+
+`Dockerfile` y `docker-compose.yml` construyen la imagen y mantienen el
+proceso activo. El dashboard queda preparado para publicarse en
+`/reporte-diario/` a través del Nginx de Aire Jalisco; su puerto no se publica
+directamente en el servidor.
+
+### Cada release se despliega sola
+
+Al publicar un release en GitHub, el workflow `deploy` corre los tests,
+construye la imagen, la sube al registry y la activa en el servidor por SSH.
+Si el healthcheck no alcanza el estado healthy en 20 minutos, el workflow
+revierte el servicio a la versión que estaba corriendo. Para entregar una
+versión nueva no hay que volver a entrar al servidor.
+
+Cómo se libera una versión:
+
+1. En el repositorio, pestaña Releases → `Draft a new release`. El tag debe
+   seguir el formato `v1.2.3`; el workflow valida ese formato y rechaza
+   cualquiera que no lo cumpla.
+2. El release tiene que publicarse con `Publish release`: un borrador no
+   dispara nada, tampoco editar uno ya publicado. El tag lo crea el propio
+   GitHub al publicar (opción `Create a new tag`), o `gh release create` si
+   se prefiere la línea de comandos. Ojo: hacer `git tag` y subirlo no
+   basta; eso es un push común y corriente, el despliegue se activa solo
+   con releases publicados.
+3. El avance se sigue en la pestaña Actions, sobre el workflow `deploy`:
+   primero validación, luego pruebas, luego la imagen y por último la
+   activación en el servidor. El primer arranque tarda: la corrida inicial
+   procesa las hojas de cálculo antes de abrir el tablero, por eso el portal
+   puede tardar varios minutos en responder aunque el despliegue siga en
+   verde.
+
+La infraestructura del despliegue ya está configurada: el usuario de
+despliegue en el servidor, su acceso al registry y los secretos y variables
+en Actions. Liberar una versión no requiere modificar nada de eso.
+
+Para volver a una versión anterior sin publicar nada: Actions → deploy →
+`Run workflow`, indicando el tag de la release que se quiere regresar.
+
 ## Correr los tests
 
 ```bash
