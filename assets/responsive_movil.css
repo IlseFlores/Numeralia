@@ -102,11 +102,11 @@
   }
 
   /* Un poco más altas que en tablet: aquí cada gráfica ocupa todo el ancho
-     (~330px) y una caja demasiado achatada se ve rara. Con 380px menos 78 de
-     márgenes internos quedan 302px de área de barras → ~30px por segmento. */
+     (~330px) y una caja demasiado achatada se ve rara. Con 450px menos 78 de
+     márgenes internos quedan 372px de área de barras → ~37px por segmento. */
   #echart-precontingencias,
   #echart-contingencias-f1 {
-    height: 380px !important;
+    height: 450px !important;
   }
 
   .grafica-serie-mensual {

@@ -3565,7 +3565,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             // severidad, así que los tres se distinguen por trama.
             // idxLeyenda elige de qué año toma su tono el cuadrito de la
             // leyenda: 0 = 2025 (azul marino), 1 = 2026 (aqua).
-            function dibujar(idDiv, cfg, idxLeyenda, animar) {
+            function dibujar(idDiv, cfg, idxLeyenda, maxGlobal, animar) {
                 const el = document.getElementById(idDiv);
                 if (!el) { return; }
 
@@ -3594,14 +3594,17 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 // para poder compararlas de un golpe de vista.
                 const med = compacta
                     ? {nombre: 11, valor: 14, salto: 12, total: 14, distancia: 16,
-                       titulo: 13, eje: 12, gridArriba: 40, gridAbajo: 22}
+                       titulo: 13, eje: 12, gridArriba: 40, gridAbajo: 22, gridDerecha: 62}
                     : {nombre: 10, valor: 14, salto: 10, total: 17, distancia: 22,
-                       titulo: 15, eje: 14, gridArriba: 64, gridAbajo: 28};
+                       titulo: 15, eje: 14, gridArriba: 64, gridAbajo: 28, gridDerecha: 68};
 
                 // El eje lo fija el año con más episodios, así que un
                 // segmento chico ocupa la misma fracción por más alta que se
                 // haga la gráfica. De ahí el alto mínimo de abajo.
                 const maxTotal = Math.max.apply(null, cfg.totales) || 1;
+                // La escala real es la compartida entre Precontingencias y Fase I
+                // cuando existe; si no, se usa el máximo local de la gráfica.
+                const escalaVisual = maxGlobal || maxTotal;
 
                 const series = cfg.series.map(function (s, i) {
                     return {
@@ -3631,12 +3634,17 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                             position: 'inside',
                             formatter: function (p) {
                                 if (!p.value) { return ''; }
-                                // Segmentos menores al 9 % del total: nombre + valor
-                                // en una sola línea para que quepan. De lo contrario,
-                                // valor arriba y nombre abajo.
-                                if (p.value / maxTotal < 0.09) {
+                                const pct = p.value / escalaVisual;
+                                // Sin etiqueta interior si el segmento ocupa
+                                // menos del 2 % de la escala visible; esos casos
+                                // se muestran como nota exterior (ver data-item).
+                                if (pct < 0.02) { return ''; }
+                                // Cualquier segmento menor al 8 %: nombre seguido
+                                // del número en una sola línea para que quepa.
+                                if (pct < 0.08) {
                                     return '{n|' + s.nombre + ':}{v| ' + p.value + '}';
                                 }
+                                // 8 % o más: nombre arriba y número abajo.
                                 return '{n|' + s.nombre + ':}\\n{v|' + p.value + '}';
                             },
                             // El color del texto lo decide el tono del relleno,
@@ -3688,6 +3696,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 // de su año: i elige el contaminante, j elige el año.
                 cfg.series.forEach(function (s, i) {
                     series[i].data = s.datos.map(function (v, j) {
+                        const pct = (v || 0) / escalaVisual;
+                        const tiny = v > 0 && pct < 0.02;
                         return {
                             // null y no 0: con 0, barMinHeight dibujaría una
                             // caja de 20 px para un contaminante que no activó
@@ -3700,16 +3710,27 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                 // para que se vea más clarito sin cambiar tonos.
                                 opacity: i === 0 ? 0.85 : 1
                             },
-                            // El texto toma el color que le toca al tono de SU
-                            // relleno, no al de la leyenda: en la misma gráfica
-                            // conviven segmentos oscuros con letra blanca y
-                            // claros con letra oscura.
-                            label: {
-                                rich: {
-                                    n: {fontSize: med.nombre, color: cfg.colores_texto_anio[j][i].nombre, lineHeight: med.salto, align: 'center'},
-                                    v: {fontSize: med.valor, fontWeight: 'bold', color: cfg.colores_texto_anio[j][i].valor, align: 'center'}
+                            // Segmentos muy pequeños (<1.5% de escala global):
+                            // la etiqueta no cabe adentro sin encimarse, así que
+                            // se saca a la derecha de la barra con el color del
+                            // año para que sea legible sobre fondo blanco.
+                            // Los demás solo sobreescriben los ricos para que
+                            // usen el tono correcto de SU relleno.
+                            label: tiny
+                                ? {
+                                    position: 'right',
+                                    formatter: '{n|' + s.nombre + ':}{v| ' + v + '}',
+                                    rich: {
+                                        n: {fontSize: med.nombre, color: cfg.colores_anio[j], lineHeight: med.salto},
+                                        v: {fontSize: med.valor, fontWeight: 'bold', color: cfg.colores_anio[j]}
+                                    }
                                 }
-                            }
+                                : {
+                                    rich: {
+                                        n: {fontSize: med.nombre, color: cfg.colores_texto_anio[j][i].nombre, lineHeight: med.salto, align: 'center'},
+                                        v: {fontSize: med.valor, fontWeight: 'bold', color: cfg.colores_texto_anio[j][i].valor, align: 'center'}
+                                    }
+                                }
                         };
                     });
                 });
@@ -3721,16 +3742,13 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                         top: 4,
                         textStyle: {fontSize: med.titulo, fontWeight: 'bold', color: cfg.color_titulo}
                     },
-                    grid: {left: 6, right: 6, top: med.gridArriba,
+                    grid: {left: 6, right: med.gridDerecha, top: med.gridArriba,
                            bottom: med.gridAbajo, containLabel: true},
                     tooltip: {
                         trigger: 'item',
                         formatter: function (p) {
-                            const t = cfg.totales[p.dataIndex];
-                            const pct = t ? (p.value / t * 100).toFixed(1) : 0;
                             return '<b>' + p.seriesName + '</b><br/>' +
-                                   p.name + ': ' + p.value + ' episodios<br/>' +
-                                   pct + '% de ' + t;
+                                   p.name + ': ' + p.value + ' episodios';
                         }
                     },
                     legend: {show: false},
@@ -3748,7 +3766,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                             }
                         }
                     },
-                    yAxis: {type: 'value', show: false},
+                    // Mismo eje (0 a escalaVisual) en Precontingencias y Fase I:
+                    // así las barras son proporcionales entre categorías.
+                    yAxis: {type: 'value', show: false, max: escalaVisual},
                     series: series,
                     animationDuration: animar === false ? 0 : 600
                 }, true);
@@ -3756,18 +3776,25 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 chart.resize();
             }
 
+            // Escala compartida entre Precontingencias y Fase I para que las
+            // barras sean proporcionales entre categorías.
+            const maxGlobalEpisodios = Math.max(
+                Math.max.apply(null, datos.precontingencias.totales) || 1,
+                Math.max.apply(null, datos.contingencias_f1.totales) || 1
+            );
+
             // Precontingencias con la leyenda en el azul de 2025 y Fase I con
             // la de 2026, para comparar las dos lecturas lado a lado.
-            dibujar('echart-precontingencias', datos.precontingencias, 0);
-            dibujar('echart-contingencias-f1', datos.contingencias_f1, 1);
+            dibujar('echart-precontingencias', datos.precontingencias, 0, maxGlobalEpisodios);
+            dibujar('echart-contingencias-f1', datos.contingencias_f1, 1, maxGlobalEpisodios);
 
             // El callback del PDF necesita rehacer estas gráficas en su versión
             // de escritorio ANTES de fotografiarlas, y 'dibujar' vive en este
             // cierre. Se expone para que pueda llamarla y esperarla, en vez de
             // disparar un 'resize' y adivinar cuánto tarda.
             window.__redibujarEpisodios = function (animar) {
-                dibujar('echart-precontingencias', datos.precontingencias, 0, animar);
-                dibujar('echart-contingencias-f1', datos.contingencias_f1, 1, animar);
+                dibujar('echart-precontingencias', datos.precontingencias, 0, maxGlobalEpisodios, animar);
+                dibujar('echart-contingencias-f1', datos.contingencias_f1, 1, maxGlobalEpisodios, animar);
             };
 
             // ECharts no se reajusta solo al cambiar el tamaño de la ventana:
@@ -3795,7 +3822,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                         const instancia = echarts.getInstanceByDom(el);
                         if (!instancia) { return; }
                         if (el.dataset.compacta !== String(modo)) {
-                            dibujar(g[0], g[1], g[2]);
+                            dibujar(g[0], g[1], g[2], maxGlobalEpisodios);
                         } else {
                             instancia.resize();
                         }
