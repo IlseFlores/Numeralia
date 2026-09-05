@@ -3593,18 +3593,24 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 // Todas las medidas que cambian entre los dos modos, juntas
                 // para poder compararlas de un golpe de vista.
                 const med = compacta
-                    ? {nombre: 11, valor: 14, salto: 12, total: 14, distancia: 16,
-                       titulo: 13, eje: 12, gridArriba: 40, gridAbajo: 22, gridDerecha: 62}
-                    : {nombre: 10, valor: 14, salto: 10, total: 17, distancia: 22,
-                       titulo: 15, eje: 14, gridArriba: 64, gridAbajo: 28, gridDerecha: 68};
+                    // gridArriba=100: título ~24px + ~32px de respiro antes del
+                    // total (distancia=26). Con 340px de alto, el área de barras
+                    // queda en 340-100-22 = 218px, suficiente para 3 segmentos.
+                    ? {nombre: 11, valor: 14, salto: 12, total: 14, distancia: 26,
+                       titulo: 13, eje: 12, gridArriba: 100, gridAbajo: 22, gridDerecha: 62}
+                    : {nombre: 10, valor: 14, salto: 10, total: 17, distancia: 30,
+                       titulo: 15, eje: 14, gridArriba: 88, gridAbajo: 28, gridDerecha: 68};
 
                 // El eje lo fija el año con más episodios, así que un
                 // segmento chico ocupa la misma fracción por más alta que se
                 // haga la gráfica. De ahí el alto mínimo de abajo.
                 const maxTotal = Math.max.apply(null, cfg.totales) || 1;
-                // La escala real es la compartida entre Precontingencias y Fase I
-                // cuando existe; si no, se usa el máximo local de la gráfica.
-                const escalaVisual = maxGlobal || maxTotal;
+                // Escala visual: en escritorio se comparte entre Precontingencias
+                // y Fase I para que las barras sean proporcionales entre gráficas.
+                // En móvil y tablet (compacto) se usa la escala local: con escala
+                // global, Fase I (max 21) dejaría un ~87 % de espacio vacío sobre
+                // Precontingencias (max 162), que en pantalla chica es enorme.
+                const escalaVisual = (!compacta && maxGlobal) ? maxGlobal : maxTotal;
 
                 const series = cfg.series.map(function (s, i) {
                     return {
@@ -3879,9 +3885,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
             const compacta = getComputedStyle(document.body)
                                   .getPropertyValue('--modo-compacto').trim() === '1';
-            const fAnio = compacta ? 11 : 13;
-            const fNombre = compacta ? 9 : 11;
-            const fValor = compacta ? 12 : 14;
+            const fAnio   = compacta ? 10 : 13;
+            const fNombre = compacta ?  8 : 11;
+            const fValor  = compacta ? 10 : 14;
 
             function dibujar(divId, anio,
                              valorA, valorE,
@@ -3893,9 +3899,10 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 if (!c) c = echarts.init(el, 'montserrat', {renderer: 'svg'});
 
                 const total = (valorA || 0) + (valorE || 0) || 1;
-                // Por debajo del 12 % del total el segmento es demasiado angosto
-                // para mostrar el nombre; solo sale el número.
-                const fracEstrecha = 0.12;
+                // Segmentos con menos del 20 % del total muestran solo el número;
+                // los demás muestran nombre + número (aunque el nombre se corte).
+                // En escritorio el umbral baja al 12 % porque la barra es más ancha.
+                const fracEstrecha = compacta ? 0.20 : 0.12;
 
                 c.setOption({
                     animation: false,
@@ -3936,7 +3943,6 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                     v: {fontSize: fValor, fontWeight: 'bold', color: textoA, align: 'center'}
                                 }
                             },
-                            labelLayout: {hideOverlap: true},
                             emphasis: {focus: 'series'}
                         },
                         {
@@ -3966,17 +3972,13 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                     v: {fontSize: fValor, fontWeight: 'bold', color: textoE, align: 'center'}
                                 }
                             },
-                            labelLayout: {hideOverlap: true},
                             emphasis: {focus: 'series'}
                         }
                     ]
                 });
                 c.resize();
 
-                // Total pegado al final de la barra: se calcula el pixel real
-                // del extremo de la barra (convertToPixel) y se pone ahí un
-                // graphic de texto, para que quede junto a la barrita y no
-                // fijo en el borde derecho del lienzo.
+                // Total pegado al final de la barra.
                 const px = c.convertToPixel({xAxisIndex: 0, yAxisIndex: 0}, [total, anio]);
                 if (px) {
                     c.setOption({

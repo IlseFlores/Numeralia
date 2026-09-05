@@ -101,12 +101,12 @@
     font-size: 16px !important;
   }
 
-  /* Un poco más altas que en tablet: aquí cada gráfica ocupa todo el ancho
-     (~330px) y una caja demasiado achatada se ve rara. Con 450px menos 78 de
-     márgenes internos quedan 372px de área de barras → ~37px por segmento. */
+  /* En móvil cada gráfica usa su propia escala (ver JS: escalaVisual con
+     compacta=true), así que no hay espacio vacío.
+     340 - 100 (gridArriba) - 22 (gridAbajo) = 218 px de área de barras. */
   #echart-precontingencias,
   #echart-contingencias-f1 {
-    height: 450px !important;
+    height: 340px !important;
   }
 
   .grafica-serie-mensual {

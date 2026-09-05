@@ -197,7 +197,7 @@ CARD_STYLE = {
 # Alto de las gráficas de episodios. Se subió un poco respecto a la tabla
 # comparativa para que, con la escala global, las barras pequeñas no queden
 # tan achatadas.
-ALTO_GRAFICA_EPISODIOS = '520px'
+ALTO_GRAFICA_EPISODIOS = '560px'
 
 
 # ── Logos del encabezado ────────────────────────────────────────────────────
