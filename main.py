@@ -2933,8 +2933,8 @@ def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
             html.Div('Se muestran los últimos 10 registros. Para consultar el listado completo, '
 'utiliza el ícono ubicado en la esquina superior derecha, o desplázate entre '
 'registros mediante las flechas de la esquina inferior derecha.',
-                      style={'position': 'absolute', 'bottom': '12px', 'left': '10px',
-                             'color': COLOR_GRIS_MUTE, 'fontSize': '11px', 'zIndex': 2}),
+                      style={'marginTop': '6px',
+                             'color': COLOR_GRIS_MUTE, 'fontSize': '11px'}),
         ], className='bitacora-contenido'),
         dcc.Download(id='descarga-pdf-alertas'),
     ], id='bitacora-alertas-wrapper', className='bitacora-cerrada',
@@ -2991,8 +2991,8 @@ def _card_bitacora_episodios(df_episodios_2026_raw: pd.DataFrame):
             html.Div('Se muestran los últimos 10 registros. Para consultar el listado completo, '
 'utiliza el ícono ubicado en la esquina superior derecha, o desplázate entre '
 'registros mediante las flechas de la esquina inferior derecha.',
-                      style={'position': 'absolute', 'bottom': '12px', 'left': '10px',
-                             'color': COLOR_GRIS_MUTE, 'fontSize': '11px', 'zIndex': 2}),
+                      style={'marginTop': '6px',
+                             'color': COLOR_GRIS_MUTE, 'fontSize': '11px'}),
         ], className='bitacora-contenido'),
         dcc.Download(id='descarga-pdf-episodios'),
     ], id='bitacora-episodios-wrapper', className='bitacora-cerrada',
@@ -3565,7 +3565,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             // severidad, así que los tres se distinguen por trama.
             // idxLeyenda elige de qué año toma su tono el cuadrito de la
             // leyenda: 0 = 2025 (azul marino), 1 = 2026 (aqua).
-            function dibujar(idDiv, cfg, idxLeyenda, animar) {
+            function dibujar(idDiv, cfg, idxLeyenda, maxGlobal, animar) {
                 const el = document.getElementById(idDiv);
                 if (!el) { return; }
 
@@ -3593,15 +3593,24 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 // Todas las medidas que cambian entre los dos modos, juntas
                 // para poder compararlas de un golpe de vista.
                 const med = compacta
-                    ? {nombre: 11, valor: 14, salto: 12, total: 14, distancia: 16,
-                       titulo: 13, eje: 12, gridArriba: 40, gridAbajo: 22}
-                    : {nombre: 10, valor: 14, salto: 10, total: 17, distancia: 22,
-                       titulo: 15, eje: 14, gridArriba: 64, gridAbajo: 28};
+                    // gridArriba=100: título ~24px + ~32px de respiro antes del
+                    // total (distancia=26). Con 340px de alto, el área de barras
+                    // queda en 340-100-22 = 218px, suficiente para 3 segmentos.
+                    ? {nombre: 11, valor: 14, salto: 12, total: 14, distancia: 26,
+                       titulo: 13, eje: 12, gridArriba: 100, gridAbajo: 22, gridDerecha: 62}
+                    : {nombre: 10, valor: 14, salto: 10, total: 17, distancia: 30,
+                       titulo: 15, eje: 14, gridArriba: 88, gridAbajo: 28, gridDerecha: 68};
 
                 // El eje lo fija el año con más episodios, así que un
                 // segmento chico ocupa la misma fracción por más alta que se
                 // haga la gráfica. De ahí el alto mínimo de abajo.
                 const maxTotal = Math.max.apply(null, cfg.totales) || 1;
+                // Escala visual: en escritorio se comparte entre Precontingencias
+                // y Fase I para que las barras sean proporcionales entre gráficas.
+                // En móvil y tablet (compacto) se usa la escala local: con escala
+                // global, Fase I (max 21) dejaría un ~87 % de espacio vacío sobre
+                // Precontingencias (max 162), que en pantalla chica es enorme.
+                const escalaVisual = (!compacta && maxGlobal) ? maxGlobal : maxTotal;
 
                 const series = cfg.series.map(function (s, i) {
                     return {
@@ -3631,13 +3640,18 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                             position: 'inside',
                             formatter: function (p) {
                                 if (!p.value) { return ''; }
-                                // Segmentos menores al 9 % del total: nombre + valor
-                                // en una sola línea para que quepan. De lo contrario,
-                                // valor arriba y nombre abajo.
-                                if (p.value / maxTotal < 0.09) {
+                                const pct = p.value / escalaVisual;
+                                // Sin etiqueta interior si el segmento ocupa
+                                // menos del 2 % de la escala visible; esos casos
+                                // se muestran como nota exterior (ver data-item).
+                                if (pct < 0.02) { return ''; }
+                                // Cualquier segmento menor al 8 %: nombre seguido
+                                // del número en una sola línea para que quepa.
+                                if (pct < 0.08) {
                                     return '{n|' + s.nombre + ':}{v| ' + p.value + '}';
                                 }
-                                return '{v|' + p.value + '}\\n{n|' + s.nombre + ':}';
+                                // 8 % o más: nombre arriba y número abajo.
+                                return '{n|' + s.nombre + ':}\\n{v|' + p.value + '}';
                             },
                             // El color del texto lo decide el tono del relleno,
                             // que depende del año y del contaminante: hay tonos
@@ -3688,6 +3702,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 // de su año: i elige el contaminante, j elige el año.
                 cfg.series.forEach(function (s, i) {
                     series[i].data = s.datos.map(function (v, j) {
+                        const pct = (v || 0) / escalaVisual;
+                        const tiny = v > 0 && pct < 0.02;
                         return {
                             // null y no 0: con 0, barMinHeight dibujaría una
                             // caja de 20 px para un contaminante que no activó
@@ -3700,16 +3716,27 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                 // para que se vea más clarito sin cambiar tonos.
                                 opacity: i === 0 ? 0.85 : 1
                             },
-                            // El texto toma el color que le toca al tono de SU
-                            // relleno, no al de la leyenda: en la misma gráfica
-                            // conviven segmentos oscuros con letra blanca y
-                            // claros con letra oscura.
-                            label: {
-                                rich: {
-                                    n: {fontSize: med.nombre, color: cfg.colores_texto_anio[j][i].nombre, lineHeight: med.salto, align: 'center'},
-                                    v: {fontSize: med.valor, fontWeight: 'bold', color: cfg.colores_texto_anio[j][i].valor, align: 'center'}
+                            // Segmentos muy pequeños (<1.5% de escala global):
+                            // la etiqueta no cabe adentro sin encimarse, así que
+                            // se saca a la derecha de la barra con el color del
+                            // año para que sea legible sobre fondo blanco.
+                            // Los demás solo sobreescriben los ricos para que
+                            // usen el tono correcto de SU relleno.
+                            label: tiny
+                                ? {
+                                    position: 'right',
+                                    formatter: '{n|' + s.nombre + ':}{v| ' + v + '}',
+                                    rich: {
+                                        n: {fontSize: med.nombre, color: cfg.colores_anio[j], lineHeight: med.salto},
+                                        v: {fontSize: med.valor, fontWeight: 'bold', color: cfg.colores_anio[j]}
+                                    }
                                 }
-                            }
+                                : {
+                                    rich: {
+                                        n: {fontSize: med.nombre, color: cfg.colores_texto_anio[j][i].nombre, lineHeight: med.salto, align: 'center'},
+                                        v: {fontSize: med.valor, fontWeight: 'bold', color: cfg.colores_texto_anio[j][i].valor, align: 'center'}
+                                    }
+                                }
                         };
                     });
                 });
@@ -3721,16 +3748,13 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                         top: 4,
                         textStyle: {fontSize: med.titulo, fontWeight: 'bold', color: cfg.color_titulo}
                     },
-                    grid: {left: 6, right: 6, top: med.gridArriba,
+                    grid: {left: 6, right: med.gridDerecha, top: med.gridArriba,
                            bottom: med.gridAbajo, containLabel: true},
                     tooltip: {
                         trigger: 'item',
                         formatter: function (p) {
-                            const t = cfg.totales[p.dataIndex];
-                            const pct = t ? (p.value / t * 100).toFixed(1) : 0;
                             return '<b>' + p.seriesName + '</b><br/>' +
-                                   p.name + ': ' + p.value + ' episodios<br/>' +
-                                   pct + '% de ' + t;
+                                   p.name + ': ' + p.value + ' episodios';
                         }
                     },
                     legend: {show: false},
@@ -3748,7 +3772,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                             }
                         }
                     },
-                    yAxis: {type: 'value', show: false},
+                    // Mismo eje (0 a escalaVisual) en Precontingencias y Fase I:
+                    // así las barras son proporcionales entre categorías.
+                    yAxis: {type: 'value', show: false, max: escalaVisual},
                     series: series,
                     animationDuration: animar === false ? 0 : 600
                 }, true);
@@ -3756,18 +3782,25 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 chart.resize();
             }
 
+            // Escala compartida entre Precontingencias y Fase I para que las
+            // barras sean proporcionales entre categorías.
+            const maxGlobalEpisodios = Math.max(
+                Math.max.apply(null, datos.precontingencias.totales) || 1,
+                Math.max.apply(null, datos.contingencias_f1.totales) || 1
+            );
+
             // Precontingencias con la leyenda en el azul de 2025 y Fase I con
             // la de 2026, para comparar las dos lecturas lado a lado.
-            dibujar('echart-precontingencias', datos.precontingencias, 0);
-            dibujar('echart-contingencias-f1', datos.contingencias_f1, 1);
+            dibujar('echart-precontingencias', datos.precontingencias, 0, maxGlobalEpisodios);
+            dibujar('echart-contingencias-f1', datos.contingencias_f1, 1, maxGlobalEpisodios);
 
             // El callback del PDF necesita rehacer estas gráficas en su versión
             // de escritorio ANTES de fotografiarlas, y 'dibujar' vive en este
             // cierre. Se expone para que pueda llamarla y esperarla, en vez de
             // disparar un 'resize' y adivinar cuánto tarda.
             window.__redibujarEpisodios = function (animar) {
-                dibujar('echart-precontingencias', datos.precontingencias, 0, animar);
-                dibujar('echart-contingencias-f1', datos.contingencias_f1, 1, animar);
+                dibujar('echart-precontingencias', datos.precontingencias, 0, maxGlobalEpisodios, animar);
+                dibujar('echart-contingencias-f1', datos.contingencias_f1, 1, maxGlobalEpisodios, animar);
             };
 
             // ECharts no se reajusta solo al cambiar el tamaño de la ventana:
@@ -3795,7 +3828,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                         const instancia = echarts.getInstanceByDom(el);
                         if (!instancia) { return; }
                         if (el.dataset.compacta !== String(modo)) {
-                            dibujar(g[0], g[1], g[2]);
+                            dibujar(g[0], g[1], g[2], maxGlobalEpisodios);
                         } else {
                             instancia.resize();
                         }
@@ -3852,39 +3885,29 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
             const compacta = getComputedStyle(document.body)
                                   .getPropertyValue('--modo-compacto').trim() === '1';
-            const fAnio = compacta ? 11 : 13;
-            const fNombre = compacta ? 9 : 11;
-            const fValor = compacta ? 12 : 14;
+            const fAnio   = compacta ? 10 : 13;
+            const fNombre = compacta ?  8 : 11;
+            const fValor  = compacta ? 10 : 14;
 
             function dibujar(divId, anio,
                              valorA, valorE,
                              colorA, colorE,
-                             textoA, textoE) {
+                             textoA, textoE, maxTotal) {
                 const el = document.getElementById(divId);
                 if (!el) return;
                 let c = echarts.getInstanceByDom(el);
                 if (!c) c = echarts.init(el, 'montserrat', {renderer: 'svg'});
 
                 const total = (valorA || 0) + (valorE || 0) || 1;
-                // Por debajo del 12 % del total el segmento es demasiado angosto
-                // para mostrar el nombre; solo sale el número.
-                const fracEstrecha = 0.12;
+                // Segmentos con menos del 20 % del total muestran solo el número;
+                // los demás muestran nombre + número (aunque el nombre se corte).
+                // En escritorio el umbral baja al 12 % porque la barra es más ancha.
+                const fracEstrecha = compacta ? 0.20 : 0.12;
 
                 c.setOption({
                     animation: false,
-                    grid: {top: 8, bottom: 8, left: 8, right: 8, containLabel: true},
-                    xAxis: {type: 'value', show: false},
-                    title: {
-                        text: String(total),
-                        right: 10,
-                        top: 'middle',
-                        textStyle: {
-                            color: anio === '2026' ? colorE : '#173d4c',
-                            fontSize: fValor,
-                            fontWeight: 'bold'
-                        },
-                        padding: 0
-                    },
+                    grid: {top: 8, bottom: 8, left: 8, right: 34, containLabel: true},
+                    xAxis: {type: 'value', show: false, max: maxTotal},
                     yAxis: {
                         type: 'category',
                         data: [anio],
@@ -3920,7 +3943,6 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                     v: {fontSize: fValor, fontWeight: 'bold', color: textoA, align: 'center'}
                                 }
                             },
-                            labelLayout: {hideOverlap: true},
                             emphasis: {focus: 'series'}
                         },
                         {
@@ -3950,32 +3972,62 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                     v: {fontSize: fValor, fontWeight: 'bold', color: textoE, align: 'center'}
                                 }
                             },
-                            labelLayout: {hideOverlap: true},
                             emphasis: {focus: 'series'}
                         }
                     ]
                 });
                 c.resize();
+
+                // Total pegado al final de la barra.
+                const px = c.convertToPixel({xAxisIndex: 0, yAxisIndex: 0}, [total, anio]);
+                if (px) {
+                    c.setOption({
+                        graphic: [{
+                            type: 'text',
+                            left: px[0] + 6,
+                            top: px[1],
+                            style: {
+                                text: String(total),
+                                fill: anio === '2026' ? colorE : '#173d4c',
+                                fontSize: fValor,
+                                fontWeight: 'bold',
+                                textVerticalAlign: 'middle'
+                            },
+                            z: 10
+                        }]
+                    });
+                }
             }
+
+            const total25 = (datos.alertas_25 || 0) + (datos.emergencias_25 || 0);
+            const total26 = (datos.alertas_26 || 0) + (datos.emergencias_26 || 0);
+            const maxTotal = Math.max(total25, total26) * 1.15;
 
             dibujar('echart-barras-alertas-25', '2025',
                     datos.alertas_25, datos.emergencias_25,
                     datos.color_a25, datos.color_e25,
-                    datos.texto_a25, datos.texto_e25);
+                    datos.texto_a25, datos.texto_e25, maxTotal);
             dibujar('echart-barras-alertas-26', '2026',
                     datos.alertas_26, datos.emergencias_26,
                     datos.color_a26, datos.color_e26,
-                    datos.texto_a26, datos.texto_e26);
+                    datos.texto_a26, datos.texto_e26, maxTotal);
 
-            if (!window.__alertasResizeBound) {
-                window.__alertasResizeBound = true;
-                window.addEventListener('resize', function () {
-                    ['echart-barras-alertas-25', 'echart-barras-alertas-26'].forEach(function (id) {
-                        const inst = echarts.getInstanceByDom(document.getElementById(id));
-                        if (inst) { inst.resize(); }
-                    });
+            window.removeEventListener('resize', window.__alertasResizeHandler);
+            window.__alertasResizeHandler = function () {
+                ['echart-barras-alertas-25', 'echart-barras-alertas-26'].forEach(function (id) {
+                    const inst = echarts.getInstanceByDom(document.getElementById(id));
+                    if (inst) { inst.resize(); }
                 });
-            }
+                dibujar('echart-barras-alertas-25', '2025',
+                        datos.alertas_25, datos.emergencias_25,
+                        datos.color_a25, datos.color_e25,
+                        datos.texto_a25, datos.texto_e25, maxTotal);
+                dibujar('echart-barras-alertas-26', '2026',
+                        datos.alertas_26, datos.emergencias_26,
+                        datos.color_a26, datos.color_e26,
+                        datos.texto_a26, datos.texto_e26, maxTotal);
+            };
+            window.addEventListener('resize', window.__alertasResizeHandler);
 
             return window.dash_clientside.no_update;
         }

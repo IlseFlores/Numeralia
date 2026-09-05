@@ -78,7 +78,7 @@ body.capturando-pdf {
    orden: llevan un selector más. */
 body.capturando-pdf #echart-precontingencias,
 body.capturando-pdf #echart-contingencias-f1 {
-  height: 450px !important;
+  height: 560px !important;
 }
 
 body.capturando-pdf .grafica-serie-mensual {
@@ -110,14 +110,16 @@ body.capturando-pdf .grafica-mapa {
    * margen del título y la tipografía, dejando más área útil para las barras.
    *
    * El piso no es libre: sobre el área de barras se reparten 3 segmentos
-   * apilados. Con 360px de alto menos 78 de márgenes internos quedan 282px, y
-   * la barra del año actual (49 de 162) se lleva 85px repartidos en 3 → 28px
-   * por segmento. Cómodo para un número de 13px. Por debajo de ~320px los
+   * apilados. Con 430px de alto menos 78 de márgenes internos quedan 352px, y
+   * la barra del año actual (49 de 162) se lleva 106px repartidos en 3 → 35px
+   * por segmento. Cómodo para un número de 13px. Por debajo de ~390px los
    * segmentos empiezan a caer al mínimo de `barMinHeight`.
    */
+  /* En tablet también se usa escala local en modo compacto, así que 340 px
+     basta para mostrar las barras sin espacio vacío excesivo. */
   #echart-precontingencias,
   #echart-contingencias-f1 {
-    height: 360px !important;
+    height: 340px !important;
   }
 
   /* Estas dos son de Plotly y su alto lo manda el contenedor (la figura ya no

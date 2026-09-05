@@ -41,6 +41,43 @@ TAMANO_LETRA_TABLA = 6
 ALTO_LOGO_PDF = 12
 
 
+class _PDFBitacora(FPDF):
+    """FPDF con logos en la cabecera y número de página en el pie."""
+
+    def __init__(self, logo_izq: str | None = None,
+                 logo_der: str | None = None, **kwargs):
+        super().__init__(**kwargs)
+        self._logo_izq = logo_izq
+        self._logo_der = logo_der
+
+    def header(self) -> None:
+        """Dibuja los logos en todas las páginas y deja el cursor debajo."""
+        tiene_logo = False
+        if self._logo_izq:
+            ancho = _ancho_logo(self._logo_izq, ALTO_LOGO_PDF)
+            if ancho:
+                self.image(self._logo_izq, x=self.l_margin,
+                           y=self.t_margin, h=ALTO_LOGO_PDF)
+                tiene_logo = True
+        if self._logo_der:
+            ancho = _ancho_logo(self._logo_der, ALTO_LOGO_PDF)
+            if ancho:
+                self.image(self._logo_der,
+                           x=self.w - self.r_margin - ancho,
+                           y=self.t_margin, h=ALTO_LOGO_PDF)
+                tiene_logo = True
+        if tiene_logo:
+            self.set_y(self.t_margin + ALTO_LOGO_PDF + 3)
+
+    def footer(self) -> None:
+        """Imprime 'Página: X de Y' en la esquina inferior derecha."""
+        self.set_y(-12)
+        self.set_font('Helvetica', '', 7)
+        self.set_text_color(*hex_a_rgb(COLOR_GRIS_MUTE))
+        texto = _sin_acentos_latin1(f'Página: {self.page_no()} de {{nb}}')
+        self.cell(0, 5, texto, align='R')
+
+
 def _ancho_logo(ruta: str, h: float) -> float:
     """Ancho proporcional a una altura fija, en milímetros."""
     if _Image is None or not os.path.exists(ruta):
@@ -67,6 +104,23 @@ def _recortar_al_ancho(pdf: FPDF, texto: str, ancho: float, holgura: float = 1) 
     while pdf.get_string_width(recortado) > ancho - holgura and len(recortado) > 1:
         recortado = recortado[:-1]
     return recortado
+
+
+def _lineas_ajustadas(pdf: FPDF, texto: str, ancho: float) -> list[str]:
+    """
+    Envuelve el texto al ancho de la columna (como haría un procesador de
+    texto), en vez de recortarlo: así celdas largas como 'Zonas de
+    Influencia' no pierden información, solo ocupan más de una línea.
+    """
+    saneado = _sin_acentos_latin1(str(texto)).strip()
+    resultado = list(pdf.multi_cell(ancho, None, saneado,
+                                    dry_run=True, output="LINES"))
+    # Datos como 'Zonas de Influencia' a veces traen saltos de línea sueltos
+    # al final (copiados de Excel): sin esto dejaban un renglón en blanco
+    # que inflaba el alto de la fila entera con espacio vacío.
+    while len(resultado) > 1 and not resultado[-1].strip():
+        resultado.pop()
+    return resultado or ['']
 
 
 def anchos_proporcionales(pdf: FPDF, df: pd.DataFrame,
@@ -132,25 +186,16 @@ def generar_pdf_tabla(df: pd.DataFrame, titulo: str, subtitulo: str = '',
     El archivo queda en el directorio temporal del sistema; quien lo entrega
     (``dcc.send_file``) se encarga de servirlo.
     """
-    pdf = FPDF(orientation='L', unit='mm', format='A4')
+    # _PDFBitacora dibuja los logos en header() (todas las páginas) y el
+    # número de página en footer(). alias_nb_pages() habilita el marcador
+    # '{nb}' que se reemplaza con el total de páginas al hacer output().
+    pdf = _PDFBitacora(logo_izq=logo_izq, logo_der=logo_der,
+                       orientation='L', unit='mm', format='A4')
+    pdf.alias_nb_pages()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
-
-    if logo_izq:
-        ancho = _ancho_logo(logo_izq, ALTO_LOGO_PDF)
-        if ancho:
-            pdf.image(logo_izq, x=pdf.l_margin, y=pdf.t_margin,
-                      h=ALTO_LOGO_PDF)
-    if logo_der:
-        ancho = _ancho_logo(logo_der, ALTO_LOGO_PDF)
-        if ancho:
-            pdf.image(logo_der, x=pdf.w - pdf.r_margin - ancho,
-                      y=pdf.t_margin, h=ALTO_LOGO_PDF)
-
-    # Deja un pequeño respiro entre los logos y el título/subtítulo.
-    y_inicio_titulo = (pdf.t_margin + ALTO_LOGO_PDF + 3
-                       if (logo_izq or logo_der) else pdf.t_margin)
-    pdf.set_y(y_inicio_titulo)
+    # header() ya posicionó el cursor debajo de los logos; en páginas sin
+    # logos el cursor arranca en el margen superior.
 
     pdf.set_font('Helvetica', 'B', 14)
     pdf.set_text_color(*hex_a_rgb(COLOR_GRIS))
@@ -181,16 +226,43 @@ def generar_pdf_tabla(df: pd.DataFrame, titulo: str, subtitulo: str = '',
 
     _encabezados()
 
+    # Interlineado real de una línea de texto (tipo Excel: apretado, no el
+    # alto cómodo de una fila de una sola línea). ALTO_FILA sigue siendo el
+    # mínimo de una fila para que las filas de una sola línea no se vean
+    # apretadas.
+    alto_linea = pdf.font_size * 1.35
+
     for _, row in df.iterrows():
+        # Cuántas líneas necesita cada columna para no recortar el texto
+        # (p.ej. 'Zonas de Influencia' suele ser la más larga) y de ahí el
+        # alto real de la fila: todas las celdas de la fila comparten ese
+        # alto para que las líneas de la tabla sigan alineadas.
+        lineas_por_columna = [_lineas_ajustadas(pdf, row[c], anchos[i])
+                              for i, c in enumerate(cols)]
+        num_lineas = max(len(lineas) for lineas in lineas_por_columna)
+        alto_fila = max(ALTO_FILA, alto_linea * num_lineas)
+        alto_por_linea_celda = alto_fila / num_lineas
+
         # Salto de página manual para poder repetir los encabezados arriba.
-        if pdf.get_y() + ALTO_FILA > pdf.h - 15:
+        if pdf.get_y() + alto_fila > pdf.h - 15:
             pdf.add_page()
             _encabezados()
+
+        x_inicio, y_inicio = pdf.get_x(), pdf.get_y()
         for i, c in enumerate(cols):
-            pdf.cell(anchos[i], ALTO_FILA,
-                     _recortar_al_ancho(pdf, row[c], anchos[i], holgura=2),
-                     border=1, align='C')
-        pdf.ln()
+            x_col = x_inicio + sum(anchos[:i])
+            # Borde de la celda completo (alto de la fila), aparte del texto:
+            # así una columna con menos líneas que 'Zonas de Influencia' no
+            # deja un renglón en blanco con su propio borde a la mitad,
+            # que es lo que se veía como una línea separadora de más.
+            pdf.rect(x_col, y_inicio, anchos[i], alto_fila)
+            # El texto se centra verticalmente dentro de ese alto.
+            lineas = lineas_por_columna[i]
+            y_texto = y_inicio + (num_lineas - len(lineas)) / 2 * alto_por_linea_celda
+            pdf.set_xy(x_col, y_texto)
+            pdf.multi_cell(anchos[i], alto_por_linea_celda, '\n'.join(lineas),
+                           border=0, align='L', new_x=XPos.LEFT, new_y=YPos.TOP)
+        pdf.set_xy(x_inicio, y_inicio + alto_fila)
 
     # mkstemp y no mktemp: este último está obsoleto y deja una ventana entre
     # que devuelve el nombre y que alguien lo crea.

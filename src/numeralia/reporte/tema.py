@@ -194,10 +194,10 @@ CARD_STYLE = {
 }
 
 # ── Medidas ─────────────────────────────────────────────────────────────────
-# Alto de las gráficas de episodios. Está igualado a la tabla comparativa que
-# va a su izquierda (13 filas ≈ 450 px) para que las dos mitades del bloque
-# terminen parejas.
-ALTO_GRAFICA_EPISODIOS = '450px'
+# Alto de las gráficas de episodios. Se subió un poco respecto a la tabla
+# comparativa para que, con la escala global, las barras pequeñas no queden
+# tan achatadas.
+ALTO_GRAFICA_EPISODIOS = '560px'
 
 
 # ── Logos del encabezado ────────────────────────────────────────────────────
