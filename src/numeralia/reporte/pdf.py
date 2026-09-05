@@ -233,7 +233,7 @@ def generar_pdf_tabla(df: pd.DataFrame, titulo: str, subtitulo: str = '',
             y_texto = y_inicio + (num_lineas - len(lineas)) / 2 * alto_por_linea_celda
             pdf.set_xy(x_col, y_texto)
             pdf.multi_cell(anchos[i], alto_por_linea_celda, '\n'.join(lineas),
-                           border=0, align='C', new_x=XPos.LEFT, new_y=YPos.TOP)
+                           border=0, align='L', new_x=XPos.LEFT, new_y=YPos.TOP)
         pdf.set_xy(x_inicio, y_inicio + alto_fila)
 
     # mkstemp y no mktemp: este último está obsoleto y deja una ventana entre
