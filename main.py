@@ -108,7 +108,8 @@ import shutil
 import calendar
 import warnings
 import unicodedata
-from datetime import datetime, date, timedelta
+from datetime import datetime, timezone, timedelta
+
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Dict, Tuple, Optional
@@ -1615,7 +1616,8 @@ def _fecha_encabezado() -> str:
     strftime('%B') porque ese depende del locale y en Colab devolvería el
     mes en inglés.
     """
-    ayer = datetime.now() - timedelta(days=1)
+    utc_minus_6 = timezone(timedelta(hours=-6))
+    ayer = datetime.now(utc_minus_6) - timedelta(days=1)
     return f"{ayer.day} DE {_MESES_NOMBRE[ayer.month].upper()} DEL {ayer.year}"
 
 
