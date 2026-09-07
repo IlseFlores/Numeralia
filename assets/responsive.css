@@ -78,7 +78,7 @@ body.capturando-pdf {
    orden: llevan un selector más. */
 body.capturando-pdf #echart-precontingencias,
 body.capturando-pdf #echart-contingencias-f1 {
-  height: 560px !important;
+  height: 370px !important;
 }
 
 body.capturando-pdf .grafica-serie-mensual {
@@ -104,22 +104,15 @@ body.capturando-pdf .grafica-mapa {
 
   /* ── Alto de las gráficas ───────────────────────────────────────────────
    *
-   * En tablet las dos de episodios siguen lado a lado junto a la tabla, así
-   * que cada una mide ~232px de ancho: con 450px de alto quedaban altísimas y
-   * flacas. Se pueden achicar porque en modo compacto el JS encoge también el
-   * margen del título y la tipografía, dejando más área útil para las barras.
-   *
-   * El piso no es libre: sobre el área de barras se reparten 3 segmentos
-   * apilados. Con 430px de alto menos 78 de márgenes internos quedan 352px, y
-   * la barra del año actual (49 de 162) se lleva 106px repartidos en 3 → 35px
-   * por segmento. Cómodo para un número de 13px. Por debajo de ~390px los
-   * segmentos empiezan a caer al mínimo de `barMinHeight`.
-   */
-  /* En tablet también se usa escala local en modo compacto, así que 340 px
-     basta para mostrar las barras sin espacio vacío excesivo. */
+   * En tablet las dos de episodios siguen lado a lado junto a la tabla. El
+   * alto se mantiene cerca del de escritorio (340 px) para que la pareja de
+   * barras siga leyéndose como un bloque emparejado con la tabla comparativa
+   * cuando su acordeón está colapsado. En modo compacto el JS encoge el
+   * margen del título y la tipografía, así que 320 px alcanza para los 3
+   * segmentos apilados sin achatar los números. */
   #echart-precontingencias,
   #echart-contingencias-f1 {
-    height: 340px !important;
+    height: 350px !important;
   }
 
   /* Estas dos son de Plotly y su alto lo manda el contenedor (la figura ya no

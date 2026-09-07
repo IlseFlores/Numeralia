@@ -102,11 +102,13 @@
   }
 
   /* En móvil cada gráfica usa su propia escala (ver JS: escalaVisual con
-     compacta=true), así que no hay espacio vacío.
-     340 - 100 (gridArriba) - 22 (gridAbajo) = 218 px de área de barras. */
+     compacta=true), así que no hay espacio vacío. Apilada bajo la tabla,
+     ocupa todo el ancho, así que la altura es lo único que aprieta al texto:
+     350 - 96 (gridArriba) - 24 (gridAbajo) = 230 px de área de barras,
+     suficiente para 3 segmentos con la tipografía compacta. */
   #echart-precontingencias,
   #echart-contingencias-f1 {
-    height: 340px !important;
+    height: 350px !important;
   }
 
   .grafica-serie-mensual {

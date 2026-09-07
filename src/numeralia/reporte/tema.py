@@ -194,10 +194,14 @@ CARD_STYLE = {
 }
 
 # ── Medidas ─────────────────────────────────────────────────────────────────
-# Alto de las gráficas de episodios. Se subió un poco respecto a la tabla
-# comparativa para que, con la escala global, las barras pequeñas no queden
-# tan achatadas.
-ALTO_GRAFICA_EPISODIOS = '560px'
+# Alto de las gráficas de episodios. Se ajusta para que la pareja de barras
+# quede visualmente emparejada con la tabla comparativa de al lado cuando su
+# acordeón está COLAPSADO (encabezado + Precontingencias + Fase I + Totales,
+# ~150 px). No se puede bajar hasta esa medida exacta sin aplastar el título,
+# los 3 segmentos apilados y la etiqueta del total, así que se deja en el
+# mínimo que mantiene legibles los números dentro de cada segmento (con su
+# retícula punteada y el piso de altura por segmento, barMinHeight).
+ALTO_GRAFICA_EPISODIOS = '370px'
 
 
 # ── Logos del encabezado ────────────────────────────────────────────────────
