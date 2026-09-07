@@ -1614,7 +1614,7 @@ def _fecha_encabezado() -> str:
     El dashboard refleja datos cerrados al día anterior, así que la fecha se
     calcula sola cada vez que se levanta. Se usa _MESES_NOMBRE en vez de
     strftime('%B') porque ese depende del locale y en Colab devolvería el
-    mes en inglés.
+    mes en inglésssss.
     """
     utc_minus_6 = timezone(timedelta(hours=-6))
     ayer = datetime.now(utc_minus_6) - timedelta(days=1)
