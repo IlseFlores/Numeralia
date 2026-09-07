@@ -3994,7 +3994,18 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 const fracEstrecha = compacta ? 0.20 : 0.12;
 
                 c.setOption({
-                    animation: false,
+                    // La animación tiene que estar PRENDIDA para que el
+                    // atenuado al pasar el cursor (emphasis.focus + el foco
+                    // cruzado entre años) haga una transición suave en vez de
+                    // un salto seco: ECharts apaga 'stateAnimation' junto con
+                    // 'animation'. Lo que no queremos es que las barras
+                    // vuelvan a crecer en cada redibujo (resize, PDF), así que
+                    // la animación de datos se deja en 0 y solo se anima el
+                    // cambio de estado, igual que la gráfica de episodios.
+                    animation: true,
+                    animationDuration: 0,
+                    animationDurationUpdate: 0,
+                    stateAnimation: {duration: 300, easing: 'cubicOut'},
                     grid: {top: 8, bottom: 8, left: 8, right: 34, containLabel: true},
                     xAxis: {type: 'value', show: false, max: maxTotal},
                     yAxis: {
@@ -4101,6 +4112,33 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     datos.color_a26, datos.color_e26,
                     datos.texto_a26, datos.texto_e26, maxTotal);
 
+            // Foco cruzado entre las dos barras (2025 y 2026), que son
+            // instancias de ECharts distintas: al posar el cursor sobre
+            // "Alertas" en cualquiera de las dos, se resalta "Alertas" y se
+            // atenúan las "Emergencias" en AMBOS años, y viceversa. Replica el
+            // emphasis.focus:'series' de las barras de episodios, que ahí
+            // funciona solo porque los dos años viven en la misma gráfica.
+            function enlazarFocoAlertas() {
+                const a = echarts.getInstanceByDom(
+                    document.getElementById('echart-barras-alertas-25'));
+                const b = echarts.getInstanceByDom(
+                    document.getElementById('echart-barras-alertas-26'));
+                if (!a || !b) { return; }
+                [[a, b], [b, a]].forEach(function (par) {
+                    const origen = par[0], espejo = par[1];
+                    origen.off('mouseover');
+                    origen.off('mouseout');
+                    origen.on('mouseover', function (p) {
+                        if (p.seriesIndex == null) { return; }
+                        espejo.dispatchAction({type: 'highlight', seriesIndex: p.seriesIndex});
+                    });
+                    origen.on('mouseout', function () {
+                        espejo.dispatchAction({type: 'downplay'});
+                    });
+                });
+            }
+            enlazarFocoAlertas();
+
             window.removeEventListener('resize', window.__alertasResizeHandler);
             window.__alertasResizeHandler = function () {
                 ['echart-barras-alertas-25', 'echart-barras-alertas-26'].forEach(function (id) {
@@ -4115,6 +4153,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                         datos.alertas_26, datos.emergencias_26,
                         datos.color_a26, datos.color_e26,
                         datos.texto_a26, datos.texto_e26, maxTotal);
+                enlazarFocoAlertas();
             };
             window.addEventListener('resize', window.__alertasResizeHandler);
 
