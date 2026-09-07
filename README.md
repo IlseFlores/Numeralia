@@ -14,7 +14,7 @@ encabezado de [`main.py`](main.py).
 
 ## Requisitos
 
-- Python 3.9 o superior (probado con 3.13).
+- Python 3.12 o superior (probado con 3.13).
 - Una cuenta de servicio de Google con acceso a Sheets API y Drive API.
 - Acceso de red a Google Sheets y a los tiles de mapa de CARTO (para el mapa
   del dashboard).

@@ -2386,7 +2386,9 @@ def _datos_grafica_episodios(df: pd.DataFrame, col_2025: str, col_2026: str,
                 {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},   # PM2.5 – tono oscuro
             ],
             [
-                {'nombre': COLOR_2026, 'valor': COLOR_2026},        # Ozono 2026 – tono claro
+                # Gris (no aqua): el aqua sobre el tono claro de Ozono casi no
+                # se leía. Mismo criterio que Ozono 2025 y que las Alertas.
+                {'nombre': COLOR_GRIS_MUTE, 'valor': COLOR_GRIS_MUTE},  # Ozono 2026 – tono claro
                 {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},   # PM10  – tono medio
                 {'nombre': COLOR_BLANCO, 'valor': COLOR_BLANCO},   # PM2.5 – tono oscuro
             ],
@@ -3138,20 +3140,22 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
             html.Div([_tabla_episodios(df_episodios)],
-                     style={'flex': '1 1 420px', 'minWidth': '340px'}),
+                     style={'flex': '1 1 380px', 'minWidth': '340px'}),
             # Contenedores vacíos que ECharts llena desde el callback
             # clientside. La altura va aquí porque ECharts necesita que el
             # div ya tenga tamaño antes de inicializarse.
             html.Div([
-                # La altura iguala a la de la tabla comparativa de la
-                # izquierda (~450 px), para que las dos mitades del bloque
-                # terminen a la misma altura en vez de dejar un hueco.
+                # La altura (ALTO_GRAFICA_EPISODIOS) deja la pareja de barras
+                # emparejada con la tabla de la izquierda cuando su acordeón
+                # está colapsado. El flex-grow 2 (contra el 1 de la tabla)
+                # reparte el ancho sobrante a favor de las gráficas, para que
+                # las barras salgan más anchas y quepan las etiquetas.
                 html.Div(id='echart-precontingencias',
-                         style={'flex': '1', 'minWidth': '340px', 'height': ALTO_GRAFICA_EPISODIOS}),
+                         style={'flex': '1', 'minWidth': '320px', 'height': ALTO_GRAFICA_EPISODIOS}),
                 html.Div(id='echart-contingencias-f1',
-                         style={'flex': '1', 'minWidth': '340px', 'height': ALTO_GRAFICA_EPISODIOS}),
-            ], className='fila-apilable', style={'flex': '1 1 400px', 'minWidth': '690px',
-                      'display': 'flex', 'gap': '6px', 'alignItems': 'stretch'}),
+                         style={'flex': '1', 'minWidth': '320px', 'height': ALTO_GRAFICA_EPISODIOS}),
+            ], className='fila-apilable', style={'flex': '2 1 460px', 'minWidth': '650px',
+                      'display': 'flex', 'gap': '2px', 'alignItems': 'stretch'}),
         ], className='fila-apilable', style={'display': 'flex', 'gap': '20px', 'flexWrap': 'wrap',
                   'alignItems': 'stretch'}),
 
@@ -3283,9 +3287,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             ]),
             " por estación: ",
             html.Span("aqua", style={'color': COLOR_2026, 'fontWeight': '700'}),
-            " = tuvo más días de buena calidad que el año pasado (mejora), ",
+            " = tuvo más días de buena calidad que el año pasado, ",
             html.Span("gris", style={'color': COLOR_2025, 'fontWeight': '700'}),
-            " = tuvo menos (empeora); entre más grande la burbuja, mayor el cambio. "
+            " = tuvo menos; entre más grande la burbuja, mayor el cambio. "
             "Pasa el cursor sobre una estación para ver el comparativo completo en el panel de la derecha.",
         ], style={'color': COLOR_MUTED, 'fontSize': '14px', 'marginTop': '14px', 'marginBottom': '0'}),
     ], style={**CARD_STYLE, 'marginBottom': '20px'})
@@ -3593,13 +3597,15 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 // Todas las medidas que cambian entre los dos modos, juntas
                 // para poder compararlas de un golpe de vista.
                 const med = compacta
-                    // gridArriba=100: título ~24px + ~32px de respiro antes del
-                    // total (distancia=26). Con 340px de alto, el área de barras
-                    // queda en 340-100-22 = 218px, suficiente para 3 segmentos.
+                    // gridArriba=96: título ~24px + ~30px de respiro antes del
+                    // total (distancia=26). Con 350px de alto, el área de barras
+                    // queda en 350-96-24 = 230px, suficiente para 3 segmentos.
+                    // gridDerecha chico: los años se acercan y no queda un
+                    // hueco muerto a la derecha de la barra de 2026.
                     ? {nombre: 11, valor: 14, salto: 12, total: 14, distancia: 26,
-                       titulo: 13, eje: 12, gridArriba: 100, gridAbajo: 22, gridDerecha: 62}
+                       titulo: 13, eje: 12, gridArriba: 96, gridAbajo: 24, gridDerecha: 30}
                     : {nombre: 10, valor: 14, salto: 10, total: 17, distancia: 30,
-                       titulo: 15, eje: 14, gridArriba: 88, gridAbajo: 28, gridDerecha: 68};
+                       titulo: 15, eje: 14, gridArriba: 88, gridAbajo: 28, gridDerecha: 34};
 
                 // El eje lo fija el año con más episodios, así que un
                 // segmento chico ocupa la misma fracción por más alta que se
@@ -3610,21 +3616,87 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 // En móvil y tablet (compacto) se usa la escala local: con escala
                 // global, Fase I (max 21) dejaría un ~87 % de espacio vacío sobre
                 // Precontingencias (max 162), que en pantalla chica es enorme.
-                const escalaVisual = (!compacta && maxGlobal) ? maxGlobal : maxTotal;
+                const POTENCIA_ESCALA = compacta ? 0.55 : 0.65;
+                const totalVisual = Math.pow(maxTotal, POTENCIA_ESCALA);
+                const escalaGlobalVisual = maxGlobal
+                    ? Math.pow(maxGlobal, POTENCIA_ESCALA)
+                    : totalVisual;
+                // En compacto cada gráfica usa su propio máximo; en escritorio
+                // se conserva un eje común con una diferencia visual suavizada.
+                const escalaVisual = compacta ? totalVisual : escalaGlobalVisual;
+
+                // Área vertical real donde se dibujan las barras, en píxeles.
+                // Sirve para traducir "quiero un piso de N px por segmento" a
+                // unidades del eje.
+                const areaBarras = Math.max(
+                    80, (el.clientHeight || 340) - med.gridArriba - med.gridAbajo);
+
+                // Piso de altura por segmento: TODO episodio se ve, aunque su
+                // valor sea diminuto frente al total. Es el mínimo para que
+                // quepa el rótulo "Nombre: N" en una línea. Se aplica en
+                // unidades del eje para no depender de barMinHeight, que ECharts
+                // no respeta bien en barras apiladas.
+                const pisoPx = compacta ? 30 : 36;
+                const pisoVisual = escalaVisual * pisoPx / areaBarras;
+
+                function valorVisual(valor, total) {
+                    if (!valor || !total) { return null; }
+                    const v = valor * (Math.pow(total, POTENCIA_ESCALA) / total);
+                    return Math.max(v, pisoVisual);
+                }
+
+                // Al subir los segmentos chicos al piso, una barra apilada
+                // puede rebasar escalaVisual. El eje se estira a la suma real
+                // más alta (mismo valor en las dos gráficas de escritorio, que
+                // comparten escala, para que la retícula siga alineada).
+                const cfgsEje = compacta
+                    ? [cfg]
+                    : [datos.precontingencias, datos.contingencias_f1];
+                let maxApilado = escalaVisual;
+                cfgsEje.forEach(function (c) {
+                    (c.totales || []).forEach(function (_, j) {
+                        let suma = 0;
+                        c.series.forEach(function (s) {
+                            const val = valorVisual(s.datos[j], c.totales[j]);
+                            if (val) { suma += val; }
+                        });
+                        if (suma > maxApilado) { maxApilado = suma; }
+                    });
+                });
+                const escalaEje = maxApilado * 1.04;
+
+                // Escala de referencia para la retícula punteada: es el total
+                // que llena el eje entero (maxGlobal en escritorio, el máximo
+                // local en compacto). La retícula es exacta para la barra de
+                // ese tamaño; las barras más chicas van dibujadas un poco
+                // agrandadas para que sus segmentos se lean, así que contra la
+                // retícula se leen "de más" — el número exacto va rotulado
+                // dentro de cada segmento. Sirve para comparar de un vistazo
+                // cuánto más grande es una gráfica que la otra.
+                const totalReferencia = Math.pow(escalaVisual, 1 / POTENCIA_ESCALA);
+                function pasoBonito(x) {
+                    if (!(x > 0)) { return 1; }
+                    const base = Math.pow(10, Math.floor(Math.log10(x)));
+                    const n = x / base;
+                    return (n >= 5 ? 5 : n >= 2 ? 2 : 1) * base;
+                }
+                const pasoReal = pasoBonito(totalReferencia / 3);
+                const pasoVisual = pasoReal * escalaVisual / totalReferencia;
 
                 const series = cfg.series.map(function (s, i) {
                     return {
                         name: s.nombre,
                         type: 'bar',
                         stack: 'total',
-                        barWidth: '48%',
-                        // Sin esto, un valor de 2 sobre 162 se dibuja como una
-                        // astilla de 4 px y no se ve. Cuesta algo de precisión
-                        // proporcional en los segmentos chicos, pero el número
-                        // va rotulado, así que el dato sigue siendo exacto.
-                        // En compacto baja junto con la tipografía: 14px le
-                        // bastan a un número de 13px.
-                        barMinHeight: compacta ? 14 : 20,
+                        // Barra ancha: deja que etiquetas como "PM2.5: 13"
+                        // quepan en una línea sin encimarse y acerca las dos
+                        // barras para que no quede un hueco muerto entre 2025
+                        // y 2026.
+                        barWidth: '72%',
+                        // El piso de altura por segmento se aplica en unidades
+                        // del eje (ver valorVisual / pisoVisual), no con
+                        // barMinHeight, porque ECharts no lo respeta bien en
+                        // barras apiladas.
                         // Este itemStyle es el que toma el cuadrito de la
                         // leyenda: lleva el tono del año que indique
                         // idxLeyenda, para que la leyenda se lea de claro a
@@ -3639,19 +3711,18 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                             show: true,
                             position: 'inside',
                             formatter: function (p) {
-                                if (!p.value) { return ''; }
-                                const pct = p.value / escalaVisual;
-                                // Sin etiqueta interior si el segmento ocupa
-                                // menos del 2 % de la escala visible; esos casos
-                                // se muestran como nota exterior (ver data-item).
-                                if (pct < 0.02) { return ''; }
-                                // Cualquier segmento menor al 8 %: nombre seguido
-                                // del número en una sola línea para que quepa.
-                                if (pct < 0.08) {
-                                    return '{n|' + s.nombre + ':}{v| ' + p.value + '}';
+                                const valorReal = p.data && p.data.rawValue != null
+                                    ? p.data.rawValue : p.value;
+                                if (!valorReal) { return ''; }
+                                // Altura real del segmento en px: con el piso
+                                // aplicado, el más chico ya mide pisoPx, así que
+                                // SIEMPRE hay rótulo. Solo se decide si el
+                                // nombre y el número caben en una línea o dos.
+                                const hPx = (p.value / escalaEje) * areaBarras;
+                                if (hPx < (compacta ? 40 : 46)) {
+                                    return '{n|' + s.nombre + ':}{v| ' + valorReal + '}';
                                 }
-                                // 8 % o más: nombre arriba y número abajo.
-                                return '{n|' + s.nombre + ':}\\n{v|' + p.value + '}';
+                                return '{n|' + s.nombre + ':}\\n{v|' + valorReal + '}';
                             },
                             // El color del texto lo decide el tono del relleno,
                             // que depende del año y del contaminante: hay tonos
@@ -3664,7 +3735,10 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                 v: {fontSize: med.valor, fontWeight: 'bold', color: cfg.colores_texto_anio[idxLeyenda][i].valor, align: 'center'}
                             }
                         },
-                        labelLayout: {hideOverlap: true},
+                        // hideOverlap NO: preferimos que dos rótulos se rocen
+                        // a que uno desaparezca — el requisito es que se vean
+                        // TODOS los datos. El piso de altura ya los separa.
+                        labelLayout: {hideOverlap: false},
                         emphasis: {focus: 'series'}
                     };
                 });
@@ -3702,13 +3776,11 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 // de su año: i elige el contaminante, j elige el año.
                 cfg.series.forEach(function (s, i) {
                     series[i].data = s.datos.map(function (v, j) {
-                        const pct = (v || 0) / escalaVisual;
-                        const tiny = v > 0 && pct < 0.02;
                         return {
-                            // null y no 0: con 0, barMinHeight dibujaría una
-                            // caja de 20 px para un contaminante que no activó
-                            // ningún episodio.
-                            value: v > 0 ? v : null,
+                            // null (no 0): un contaminante que no activó ningún
+                            // episodio no debe ocupar el piso de altura.
+                            value: valorVisual(v, cfg.totales[j]),
+                            rawValue: v,
                             itemStyle: {
                                 color: cfg.escalas_anio[j][i],
                                 borderColor: cfg.colores_anio[j],
@@ -3716,27 +3788,15 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                 // para que se vea más clarito sin cambiar tonos.
                                 opacity: i === 0 ? 0.85 : 1
                             },
-                            // Segmentos muy pequeños (<1.5% de escala global):
-                            // la etiqueta no cabe adentro sin encimarse, así que
-                            // se saca a la derecha de la barra con el color del
-                            // año para que sea legible sobre fondo blanco.
-                            // Los demás solo sobreescriben los ricos para que
-                            // usen el tono correcto de SU relleno.
-                            label: tiny
-                                ? {
-                                    position: 'right',
-                                    formatter: '{n|' + s.nombre + ':}{v| ' + v + '}',
-                                    rich: {
-                                        n: {fontSize: med.nombre, color: cfg.colores_anio[j], lineHeight: med.salto},
-                                        v: {fontSize: med.valor, fontWeight: 'bold', color: cfg.colores_anio[j]}
-                                    }
+                            // Todos los rótulos van adentro; solo se sobreescriben
+                            // los ricos para que usen el tono correcto de SU
+                            // relleno (el año real de esta barra).
+                            label: {
+                                rich: {
+                                    n: {fontSize: med.nombre, color: cfg.colores_texto_anio[j][i].nombre, lineHeight: med.salto, align: 'center'},
+                                    v: {fontSize: med.valor, fontWeight: 'bold', color: cfg.colores_texto_anio[j][i].valor, align: 'center'}
                                 }
-                                : {
-                                    rich: {
-                                        n: {fontSize: med.nombre, color: cfg.colores_texto_anio[j][i].nombre, lineHeight: med.salto, align: 'center'},
-                                        v: {fontSize: med.valor, fontWeight: 'bold', color: cfg.colores_texto_anio[j][i].valor, align: 'center'}
-                                    }
-                                }
+                            }
                         };
                     });
                 });
@@ -3754,7 +3814,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                         trigger: 'item',
                         formatter: function (p) {
                             return '<b>' + p.seriesName + '</b><br/>' +
-                                   p.name + ': ' + p.value + ' episodios';
+                                   p.name + ': ' + (p.data && p.data.rawValue != null
+                                       ? p.data.rawValue : p.value) + ' episodios';
                         }
                     },
                     legend: {show: false},
@@ -3773,8 +3834,34 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                         }
                     },
                     // Mismo eje (0 a escalaVisual) en Precontingencias y Fase I:
-                    // así las barras son proporcionales entre categorías.
-                    yAxis: {type: 'value', show: false, max: escalaVisual},
+                    // así las barras son proporcionales entre categorías. La
+                    // retícula punteada aterriza a la misma altura en las dos
+                    // gráficas, de modo que se ve de un vistazo cuánto más
+                    // grande es una que la otra. Los rótulos van en episodios
+                    // reales de la escala de referencia (ver totalReferencia).
+                    yAxis: {
+                        type: 'value',
+                        max: escalaEje,
+                        min: 0,
+                        interval: pasoVisual,
+                        axisLine: {show: false},
+                        axisTick: {show: false},
+                        axisLabel: {
+                            show: true,
+                            showMinLabel: false,
+                            showMaxLabel: false,
+                            fontSize: Math.max(9, med.eje - 3),
+                            color: '""" + COLOR_GRIS + """',
+                            formatter: function (v) {
+                                return Math.round(v * totalReferencia / escalaVisual);
+                            }
+                        },
+                        splitLine: {
+                            show: true,
+                            lineStyle: {type: 'dashed', color: '""" + COLOR_GRIS + """',
+                                        opacity: 0.4, width: 1}
+                        }
+                    },
                     series: series,
                     animationDuration: animar === false ? 0 : 600
                 }, true);
@@ -4321,9 +4408,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     forzarEstilo(el, 'min-width', '190px');
                     forzarEstilo(el, 'width', 'auto');
                     // Mismo problema que el ancho, y misma solución: el alto
-                    // de 450px depende de que una regla externa le gane por
-                    // especificidad a la del '@media' de celular, y esa
-                    // carrera no siempre se resuelve antes de que
+                    // (ALTO_GRAFICA_EPISODIOS) depende de que una regla externa
+                    // le gane por especificidad a la del '@media' de celular, y
+                    // esa carrera no siempre se resuelve antes de que
                     // 'chart.resize()' lea el tamaño del contenedor.
                     forzarEstilo(el, 'height', '""" + ALTO_GRAFICA_EPISODIOS + """');
                 });
