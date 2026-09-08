@@ -2068,10 +2068,15 @@ def _kpi_dato(etiqueta: str, valor, color_punto: str = None):
 
 def _kpi_total(etiqueta: str, valor):
     """
-    Pie de la ficha con el total, sobre la franja con tinte aqua. La cifra
-    va en gris oscuro: como el fondo ya es aqua diluido, ponerla también en
-    aqua la haría desaparecer, y siendo el número más importante de la ficha
-    necesita el mayor contraste.
+    Franja de resumen con el total, justo debajo del título de la ficha. Es
+    el número más importante, así que encabeza la tarjeta y el desglose
+    (precontingencias / fases, alertas / emergencias) queda debajo como
+    detalle. Va sobre el tinte aqua diluido de la familia; la cifra en gris
+    oscuro porque sobre ese fondo el aqua desaparecería y necesita el mayor
+    contraste.
+
+    Ocupa todo el ancho (la tarjeta tiene padding 0 y overflow hidden), con
+    filos arriba y abajo que la enmarcan entre el título y el desglose.
     """
     return html.Div([
         html.Span(etiqueta, style={
@@ -2081,14 +2086,16 @@ def _kpi_total(etiqueta: str, valor):
         html.Span(str(valor), style={
             'color': '#173d4c', 'fontWeight': '800', 'fontSize': '32px', 'lineHeight': '1',
         }),
-    ], style={**_KPI_PIE, 'display': 'flex', 'justifyContent': 'space-between',
+    ], style={**_KPI_PIE, 'borderBottom': '1px solid #dcf1ec',
+              'display': 'flex', 'justifyContent': 'space-between',
               'alignItems': 'center', 'gap': '12px'})
 
 
 def _kpi_activaciones_simaj(df_episodios: pd.DataFrame, col_2026: str):
     """
-    Ficha 'Activaciones por SIMAJ': solo datos 2026. Precontingencias a la
-    izquierda, contingencias por fase a la derecha, y el total abajo.
+    Ficha 'Activaciones por SIMAJ': solo datos 2026. El total encabeza la
+    ficha (bajo el título) y el desglose queda debajo: precontingencias a la
+    izquierda, contingencias por fase a la derecha.
 
     Las fases se leen de la tabla de Episodios, así que si en el futuro las
     Fases II o III dejan de estar en cero, aparecen solas sin tocar el código.
@@ -2122,6 +2129,7 @@ def _kpi_activaciones_simaj(df_episodios: pd.DataFrame, col_2026: str):
 
     return html.Div([
         html.Div('Episodios Activados', style=_KPI_TITULO),
+        _kpi_total('Episodios Totales', total),
         html.Div(html.Div([
             html.Div(_kpi_dato('Precontingencias', precont, _SEVERIDAD_TINTES[1]),
                      style={'flex': '1', 'minWidth': '0'}),
@@ -2136,8 +2144,7 @@ def _kpi_activaciones_simaj(df_episodios: pd.DataFrame, col_2026: str):
                 }),
             ], style={'flex': '1', 'minWidth': '0'}),
         ], style={'display': 'flex', 'gap': '14px', 'alignItems': 'center',
-                  'height': '100%'}), style=_KPI_CUERPO),
-        _kpi_total('Total de episodios Activados', total),
+                  'height': '100%'}), style={**_KPI_CUERPO, 'paddingTop': '18px'}),
     ], style=_KPI_CONTENEDOR)
 
 
@@ -2160,6 +2167,7 @@ def _kpi_alertas_emergencias(df_alertas: pd.DataFrame, col_2026: str):
 
     return html.Div([
         html.Div('Eventos activados', style=_KPI_TITULO),
+        _kpi_total('Eventos Totales', total),
         html.Div(html.Div([
             html.Div(_kpi_dato('Alertas', alertas, '#FFB300'),
                      style={'flex': '1', 'minWidth': '0'}),
@@ -2168,8 +2176,7 @@ def _kpi_alertas_emergencias(df_alertas: pd.DataFrame, col_2026: str):
             html.Div(_kpi_dato('Emergencias', emergencias, '#FF0000'),
                      style={'flex': '1', 'minWidth': '0'}),
         ], style={'display': 'flex', 'gap': '14px', 'alignItems': 'center',
-                  'height': '100%'}), style=_KPI_CUERPO),
-        _kpi_total('Total de Eventos Activados', total),
+                  'height': '100%'}), style={**_KPI_CUERPO, 'paddingTop': '18px'}),
     ], style=_KPI_CONTENEDOR)
 
 
