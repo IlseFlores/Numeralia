@@ -2097,7 +2097,7 @@ def _kpi_activaciones_simaj(df_episodios: pd.DataFrame, col_2026: str):
     a la izquierda, contingencias por fase a la derecha.
 
     Las fases se leen de la tabla de Episodios, así que si en el futuro las
-    Fases II o III dejan de estar en cero, aparecen solas sin tocar el código.
+    Fases II o III  dejan de estar en cero, aparecen solas sin tocar el código.
     """
     col_label = df_episodios.columns[0]
 
