@@ -5,7 +5,7 @@
 #
 # CÓMO USARLO EN COLAB
 # ---------------------------------------------------------------------------
-# 1) En la PRIMERA celda de tu notebook (una sola vez por sesión), instala
+# 1) En la PRIMERAAAA celda de tu notebook (una sola vez por sesión), instala
 #    las dependencias que no vienen por defecto en Colab:
 #
 #       %pip install gspread-dataframe dash fpdf2 kaleido -q
