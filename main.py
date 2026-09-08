@@ -2068,25 +2068,24 @@ def _kpi_dato(etiqueta: str, valor, color_punto: str = None):
 
 def _kpi_total(etiqueta: str, valor):
     """
-    Franja de resumen con el total, justo debajo del título de la ficha. Es
-    el número más importante, así que encabeza la tarjeta y el desglose
-    (precontingencias / fases, alertas / emergencias) queda debajo como
-    detalle. Va sobre el tinte aqua diluido de la familia; la cifra en gris
-    oscuro porque sobre ese fondo el aqua desaparecería y necesita el mayor
-    contraste.
+    Encabezado de la ficha: sustituye al título. La etiqueta va en el aqua de
+    2026 (el mismo color que tenían los títulos 'Episodios/Eventos Activados'
+    que reemplaza); la cifra —el número más importante— se queda en gris
+    oscuro para no perderse sobre el tinte aqua diluido del recuadro.
 
     Ocupa todo el ancho (la tarjeta tiene padding 0 y overflow hidden), con
-    filos arriba y abajo que la enmarcan entre el título y el desglose.
+    un filo abajo que lo separa del desglose.
     """
     return html.Div([
         html.Span(etiqueta, style={
-            'color': '#173d4c', 'fontSize': '15px', 'fontWeight': '700',
-            'textTransform': 'uppercase', 'letterSpacing': '0.04em',
+            'color': COLOR_2026, 'fontSize': '14px', 'fontWeight': '800',
+            'textTransform': 'uppercase', 'letterSpacing': '0.06em',
         }),
         html.Span(str(valor), style={
             'color': '#173d4c', 'fontWeight': '800', 'fontSize': '32px', 'lineHeight': '1',
         }),
     ], style={**_KPI_PIE, 'borderBottom': '1px solid #dcf1ec',
+              'padding': '14px 20px',
               'display': 'flex', 'justifyContent': 'space-between',
               'alignItems': 'center', 'gap': '12px'})
 
@@ -2094,8 +2093,8 @@ def _kpi_total(etiqueta: str, valor):
 def _kpi_activaciones_simaj(df_episodios: pd.DataFrame, col_2026: str):
     """
     Ficha 'Activaciones por SIMAJ': solo datos 2026. El total encabeza la
-    ficha (bajo el título) y el desglose queda debajo: precontingencias a la
-    izquierda, contingencias por fase a la derecha.
+    ficha (en lugar del título) y el desglose queda debajo: precontingencias
+    a la izquierda, contingencias por fase a la derecha.
 
     Las fases se leen de la tabla de Episodios, así que si en el futuro las
     Fases II o III dejan de estar en cero, aparecen solas sin tocar el código.
@@ -2128,7 +2127,9 @@ def _kpi_activaciones_simaj(df_episodios: pd.DataFrame, col_2026: str):
     )
 
     return html.Div([
-        html.Div('Episodios Activados', style=_KPI_TITULO),
+        # El encabezado de la ficha ES el total (antes iba el título
+        # 'Episodios Activados'): _kpi_total lo pinta en el aqua de 2026 sobre
+        # el recuadro azul bajito.
         _kpi_total('Episodios Totales', total),
         html.Div(html.Div([
             html.Div(_kpi_dato('Precontingencias', precont, _SEVERIDAD_TINTES[1]),
@@ -2166,7 +2167,7 @@ def _kpi_alertas_emergencias(df_alertas: pd.DataFrame, col_2026: str):
     total = _valor('total')
 
     return html.Div([
-        html.Div('Eventos activados', style=_KPI_TITULO),
+        # El encabezado ES el total (antes: título 'Eventos activados').
         _kpi_total('Eventos Totales', total),
         html.Div(html.Div([
             html.Div(_kpi_dato('Alertas', alertas, '#FFB300'),
