@@ -3823,9 +3823,51 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     tooltip: {
                         trigger: 'item',
                         formatter: function (p) {
-                            return '<b>' + p.seriesName + '</b><br/>' +
-                                   p.name + ': ' + (p.data && p.data.rawValue != null
-                                       ? p.data.rawValue : p.value) + ' episodios';
+                            const valor = (p.data && p.data.rawValue != null)
+                                ? p.data.rawValue : p.value;
+                            let html = '<b>' + p.seriesName + '</b><br/>' +
+                                       p.name + ': ' + valor + ' episodios';
+
+                            // Tercera línea: cómo se compara ESTE contaminante
+                            // contra el otro año. La leyenda de la barra ya dice
+                            // el dato crudo; lo que no se ve de un vistazo es la
+                            // variación, y es justo lo que se busca al pasar el
+                            // mouse. Se lee del mismo cfg que alimenta la serie
+                            // (índice de serie = contaminante, dataIndex = año).
+                            const serie = cfg.series[p.seriesIndex];
+                            if (serie) {
+                                const otroIdx  = p.dataIndex === 0 ? 1 : 0;
+                                const otroAnio = cfg.anios[otroIdx];
+                                const otro     = serie.datos[otroIdx] || 0;
+                                // La base es SIEMPRE el año previo (índice 0),
+                                // no el año que se señala. Así la barra de 2025
+                                // y la de 2026 muestran el mismo porcentaje —la
+                                // brecha entre años como fracción del año de
+                                // referencia— y solo cambia "más" / "menos".
+                                // Si la base fuera el otro año, señalar 2025
+                                // daría cifras enormes (dividir entre el año en
+                                // curso, con pocos episodios).
+                                const base = serie.datos[0] || 0;
+                                let comp;
+                                if (!base) {
+                                    // Sin base no hay porcentaje: dividir entre 0
+                                    // daría Infinity y "∞% más" no dice nada.
+                                    comp = 'sin episodios en ' + cfg.anios[0];
+                                } else if (valor === otro) {
+                                    comp = 'igual que en ' + otroAnio;
+                                } else {
+                                    const pct = Math.abs(valor - otro) / base * 100;
+                                    // Un decimal solo por debajo de 10 %, donde
+                                    // redondear a entero borra la diferencia.
+                                    const txt = pct < 10
+                                        ? pct.toFixed(1).replace(/\\.0$/, '')
+                                        : String(Math.round(pct));
+                                    comp = txt + '% ' + (valor > otro ? 'más' : 'menos') +
+                                           ' comparado al ' + otroAnio;
+                                }
+                                html += '<br/>' + comp;
+                            }
+                            return html;
                         }
                     },
                     legend: {show: false},
