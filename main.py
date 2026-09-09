@@ -2066,32 +2066,59 @@ def _kpi_dato(etiqueta: str, valor, color_punto: str = None):
     ], style={'textAlign': 'center'})
 
 
+def _periodo_corte() -> str:
+    """
+    'Registro del 1 de enero al 8 de septiembre de 2026' — el rango que cubren
+    los datos. El corte es el día anterior, igual que _fecha_encabezado: el
+    dashboard refleja datos cerrados al día previo.
+    """
+    utc_minus_6 = timezone(timedelta(hours=-6))
+    ayer = datetime.now(utc_minus_6) - timedelta(days=1)
+    return (f"Registro del 1 de enero al {ayer.day} de "
+            f"{_MESES_NOMBRE[ayer.month].lower()} de {ayer.year}")
+
+
 def _kpi_total(etiqueta: str, valor):
     """
-    Pie de la ficha con el total, sobre la franja con tinte aqua. La cifra
-    va en gris oscuro: como el fondo ya es aqua diluido, ponerla también en
-    aqua la haría desaparecer, y siendo el número más importante de la ficha
-    necesita el mayor contraste.
+    Encabezado de la ficha: sustituye al título. La etiqueta va en el aqua de
+    2026 (el mismo color que tenían los títulos 'Episodios/Eventos Activados'
+    que reemplaza); la cifra —el número más importante— se queda en gris
+    oscuro para no perderse sobre el tinte aqua diluido del recuadro.
+
+    Debajo de la etiqueta, en letra muy chica, el periodo que cubren los datos.
+
+    Ocupa todo el ancho (la tarjeta tiene padding 0 y overflow hidden), con
+    un filo abajo que lo separa del desglose.
     """
     return html.Div([
-        html.Span(etiqueta, style={
-            'color': '#173d4c', 'fontSize': '15px', 'fontWeight': '700',
-            'textTransform': 'uppercase', 'letterSpacing': '0.04em',
-        }),
+        html.Div([
+            html.Span(etiqueta, style={
+                'color': COLOR_2026, 'fontSize': '14px', 'fontWeight': '800',
+                'textTransform': 'uppercase', 'letterSpacing': '0.06em',
+            }),
+            html.Div(_periodo_corte(), style={
+                'color': COLOR_GRIS_MUTE, 'fontSize': '9.5px', 'fontWeight': '600',
+                'letterSpacing': '0', 'marginTop': '2px',
+                'fontFamily': 'Montserrat, sans-serif', 'textTransform': 'none',
+            }),
+        ]),
         html.Span(str(valor), style={
             'color': '#173d4c', 'fontWeight': '800', 'fontSize': '32px', 'lineHeight': '1',
         }),
-    ], style={**_KPI_PIE, 'display': 'flex', 'justifyContent': 'space-between',
+    ], style={**_KPI_PIE, 'borderBottom': '1px solid #dcf1ec',
+              'padding': '14px 20px',
+              'display': 'flex', 'justifyContent': 'space-between',
               'alignItems': 'center', 'gap': '12px'})
 
 
 def _kpi_activaciones_simaj(df_episodios: pd.DataFrame, col_2026: str):
     """
-    Ficha 'Activaciones por SIMAJ': solo datos 2026. Precontingencias a la
-    izquierda, contingencias por fase a la derecha, y el total abajo.
+    Ficha 'Activaciones por SIMAJ': solo datos 2026. El total encabeza la
+    ficha (en lugar del título) y el desglose queda debajo: precontingencias
+    a la izquierda, contingencias por fase a la derecha.
 
     Las fases se leen de la tabla de Episodios, así que si en el futuro las
-    Fases II o III dejan de estar en cero, aparecen solas sin tocar el código.
+    Fases II o III  dejan de estar en cero, aparecen solas sin tocar el código.
     """
     col_label = df_episodios.columns[0]
 
@@ -2121,7 +2148,10 @@ def _kpi_activaciones_simaj(df_episodios: pd.DataFrame, col_2026: str):
     )
 
     return html.Div([
-        html.Div('Episodios Activados', style=_KPI_TITULO),
+        # El encabezado de la ficha ES el total (antes iba el título
+        # 'Episodios Activados'): _kpi_total lo pinta en el aqua de 2026 sobre
+        # el recuadro azul bajito.
+        _kpi_total('Episodios Totales', total),
         html.Div(html.Div([
             html.Div(_kpi_dato('Precontingencias', precont, _SEVERIDAD_TINTES[1]),
                      style={'flex': '1', 'minWidth': '0'}),
@@ -2136,8 +2166,7 @@ def _kpi_activaciones_simaj(df_episodios: pd.DataFrame, col_2026: str):
                 }),
             ], style={'flex': '1', 'minWidth': '0'}),
         ], style={'display': 'flex', 'gap': '14px', 'alignItems': 'center',
-                  'height': '100%'}), style=_KPI_CUERPO),
-        _kpi_total('Total de episodios Activados', total),
+                  'height': '100%'}), style={**_KPI_CUERPO, 'paddingTop': '18px'}),
     ], style=_KPI_CONTENEDOR)
 
 
@@ -2159,7 +2188,8 @@ def _kpi_alertas_emergencias(df_alertas: pd.DataFrame, col_2026: str):
     total = _valor('total')
 
     return html.Div([
-        html.Div('Eventos activados', style=_KPI_TITULO),
+        # El encabezado ES el total (antes: título 'Eventos activados').
+        _kpi_total('Eventos Totales', total),
         html.Div(html.Div([
             html.Div(_kpi_dato('Alertas', alertas, '#FFB300'),
                      style={'flex': '1', 'minWidth': '0'}),
@@ -2168,8 +2198,7 @@ def _kpi_alertas_emergencias(df_alertas: pd.DataFrame, col_2026: str):
             html.Div(_kpi_dato('Emergencias', emergencias, '#FF0000'),
                      style={'flex': '1', 'minWidth': '0'}),
         ], style={'display': 'flex', 'gap': '14px', 'alignItems': 'center',
-                  'height': '100%'}), style=_KPI_CUERPO),
-        _kpi_total('Total de Eventos Activados', total),
+                  'height': '100%'}), style={**_KPI_CUERPO, 'paddingTop': '18px'}),
     ], style=_KPI_CONTENEDOR)
 
 
@@ -3815,9 +3844,47 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     tooltip: {
                         trigger: 'item',
                         formatter: function (p) {
-                            return '<b>' + p.seriesName + '</b><br/>' +
-                                   p.name + ': ' + (p.data && p.data.rawValue != null
-                                       ? p.data.rawValue : p.value) + ' episodios';
+                            const valor = (p.data && p.data.rawValue != null)
+                                ? p.data.rawValue : p.value;
+                            let html = '<b>' + p.seriesName + '</b><br/>' +
+                                       p.name + ': ' + valor + ' episodios';
+
+                            // Tercera línea: cómo se compara ESTE contaminante
+                            // contra el año previo. Solo se muestra en la barra
+                            // de 2026 (dataIndex 1) y solo para Ozono y PM10 —
+                            // en 2025 no aplica (sería contra sí mismo) y para
+                            // PM2.5 se dejó fuera a propósito. La leyenda de la
+                            // barra ya da el dato crudo; lo que no se ve de un
+                            // vistazo es la variación, y es lo que se busca al
+                            // pasar el mouse.
+                            const CONTAM_CON_PCT = ['Ozono', 'PM10'];
+                            const serie = cfg.series[p.seriesIndex];
+                            if (serie && p.dataIndex === 1 &&
+                                CONTAM_CON_PCT.indexOf(p.seriesName) !== -1) {
+                                const anioPrevio = cfg.anios[0];
+                                // Base = año previo (2025). El porcentaje es la
+                                // brecha entre años como fracción de ese año.
+                                const base = serie.datos[0] || 0;
+                                let comp;
+                                if (!base) {
+                                    // Sin base no hay porcentaje: dividir entre 0
+                                    // daría Infinity y "∞% menos" no dice nada.
+                                    comp = 'sin episodios en ' + anioPrevio;
+                                } else if (valor === base) {
+                                    comp = 'igual que en ' + anioPrevio;
+                                } else {
+                                    const pct = Math.abs(valor - base) / base * 100;
+                                    // Un decimal solo por debajo de 10 %, donde
+                                    // redondear a entero borra la diferencia.
+                                    const txt = pct < 10
+                                        ? pct.toFixed(1).replace(/\\.0$/, '')
+                                        : String(Math.round(pct));
+                                    comp = txt + '% ' + (valor > base ? 'más' : 'menos') +
+                                           ' comparado al ' + anioPrevio;
+                                }
+                                html += '<br/>' + comp;
+                            }
+                            return html;
                         }
                     },
                     legend: {show: false},
@@ -3981,20 +4048,65 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             function dibujar(divId, anio,
                              valorA, valorE,
                              colorA, colorE,
-                             textoA, textoE, maxTotal) {
+                             textoA, textoE, maxTotal, previo) {
                 const el = document.getElementById(divId);
                 if (!el) return;
                 let c = echarts.getInstanceByDom(el);
                 if (!c) c = echarts.init(el, 'montserrat', {renderer: 'svg'});
 
                 const total = (valorA || 0) + (valorE || 0) || 1;
+
+                // Tooltip solo para la barra que recibe 'previo' (la de 2026):
+                // muestra, por segmento, la variación contra el año anterior,
+                // con ese año como base —misma cuenta que el tooltip de las
+                // barras de episodios—. Para 2025 no se pasa 'previo' y la
+                // gráfica va sin tooltip, como antes.
+                const anioPrevio = String((+anio) - 1);
+                const tooltip = previo
+                    ? {
+                        trigger: 'item',
+                        formatter: function (p) {
+                            const nombre = p.seriesIndex === 0 ? 'Alertas' : 'Emergencias';
+                            const valor  = p.value || 0;
+                            let html = '<b>' + nombre + '</b><br/>' +
+                                       anio + ': ' + valor + ' eventos';
+                            const base = previo[p.seriesIndex] || 0;
+                            let comp;
+                            if (!base) {
+                                comp = 'sin registro en ' + anioPrevio;
+                            } else if (valor === base) {
+                                comp = 'igual que en ' + anioPrevio;
+                            } else {
+                                const pct = Math.abs(valor - base) / base * 100;
+                                const txt = pct < 10
+                                    ? pct.toFixed(1).replace(/\\.0$/, '')
+                                    : String(Math.round(pct));
+                                comp = txt + '% ' + (valor > base ? 'más' : 'menos') +
+                                       ' comparado al ' + anioPrevio;
+                            }
+                            return html + '<br/>' + comp;
+                        }
+                    }
+                    : {show: false};
                 // Segmentos con menos del 20 % del total muestran solo el número;
                 // los demás muestran nombre + número (aunque el nombre se corte).
                 // En escritorio el umbral baja al 12 % porque la barra es más ancha.
                 const fracEstrecha = compacta ? 0.20 : 0.12;
 
                 c.setOption({
-                    animation: false,
+                    // La animación tiene que estar PRENDIDA para que el
+                    // atenuado al pasar el cursor (emphasis.focus + el foco
+                    // cruzado entre años) haga una transición suave en vez de
+                    // un salto seco: ECharts apaga 'stateAnimation' junto con
+                    // 'animation'. Lo que no queremos es que las barras
+                    // vuelvan a crecer en cada redibujo (resize, PDF), así que
+                    // la animación de datos se deja en 0 y solo se anima el
+                    // cambio de estado, igual que la gráfica de episodios.
+                    animation: true,
+                    animationDuration: 0,
+                    animationDurationUpdate: 0,
+                    stateAnimation: {duration: 300, easing: 'cubicOut'},
+                    tooltip: tooltip,
                     grid: {top: 8, bottom: 8, left: 8, right: 34, containLabel: true},
                     xAxis: {type: 'value', show: false, max: maxTotal},
                     yAxis: {
@@ -4099,7 +4211,35 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             dibujar('echart-barras-alertas-26', '2026',
                     datos.alertas_26, datos.emergencias_26,
                     datos.color_a26, datos.color_e26,
-                    datos.texto_a26, datos.texto_e26, maxTotal);
+                    datos.texto_a26, datos.texto_e26, maxTotal,
+                    [datos.alertas_25, datos.emergencias_25]);
+
+            // Foco cruzado entre las dos barras (2025 y 2026), que son
+            // instancias de ECharts distintas: al posar el cursor sobre
+            // "Alertas" en cualquiera de las dos, se resalta "Alertas" y se
+            // atenúan las "Emergencias" en AMBOS años, y viceversa. Replica el
+            // emphasis.focus:'series' de las barras de episodios, que ahí
+            // funciona solo porque los dos años viven en la misma gráfica.
+            function enlazarFocoAlertas() {
+                const a = echarts.getInstanceByDom(
+                    document.getElementById('echart-barras-alertas-25'));
+                const b = echarts.getInstanceByDom(
+                    document.getElementById('echart-barras-alertas-26'));
+                if (!a || !b) { return; }
+                [[a, b], [b, a]].forEach(function (par) {
+                    const origen = par[0], espejo = par[1];
+                    origen.off('mouseover');
+                    origen.off('mouseout');
+                    origen.on('mouseover', function (p) {
+                        if (p.seriesIndex == null) { return; }
+                        espejo.dispatchAction({type: 'highlight', seriesIndex: p.seriesIndex});
+                    });
+                    origen.on('mouseout', function () {
+                        espejo.dispatchAction({type: 'downplay'});
+                    });
+                });
+            }
+            enlazarFocoAlertas();
 
             window.removeEventListener('resize', window.__alertasResizeHandler);
             window.__alertasResizeHandler = function () {
@@ -4114,7 +4254,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 dibujar('echart-barras-alertas-26', '2026',
                         datos.alertas_26, datos.emergencias_26,
                         datos.color_a26, datos.color_e26,
-                        datos.texto_a26, datos.texto_e26, maxTotal);
+                        datos.texto_a26, datos.texto_e26, maxTotal,
+                        [datos.alertas_25, datos.emergencias_25]);
+                enlazarFocoAlertas();
             };
             window.addEventListener('resize', window.__alertasResizeHandler);
 
