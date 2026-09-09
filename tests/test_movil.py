@@ -605,15 +605,18 @@ class TestIndexString:
 
 class TestFuenteMainPy:
     """
-    Este gancho vive en los ``clientside_callback`` (fuera del
-    ``index_string``), pero es igual de crítico para que el PDF fuerce el
-    ancho de escritorio en celular: si alguien lo borra por accidente, el
+    Estos ganchos viven en los ``clientside_callback``, que ahora son archivos
+    de verdad en ``assets/dashboard.js`` (antes eran cadenas de JS dentro de
+    ``build_dash_app``). Siguen siendo críticos para que el PDF fuerce el
+    ancho de escritorio en celular: si alguien los borra por accidente, el
     test avisa.
     """
 
     @pytest.fixture(scope="module")
     def fuente(self):
-        return pathlib.Path(original.__file__).read_text(encoding="utf-8")
+        py = pathlib.Path(original.__file__).read_text(encoding="utf-8")
+        js = (RUTA_RAIZ / "assets" / "dashboard.js").read_text(encoding="utf-8")
+        return py + "\n" + js
 
     def test_conserva_la_clase_que_fuerza_el_ancho_de_escritorio_en_pdf(self, fuente):
         assert "capturando-pdf" in fuente
