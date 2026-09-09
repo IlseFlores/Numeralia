@@ -4027,13 +4027,46 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             function dibujar(divId, anio,
                              valorA, valorE,
                              colorA, colorE,
-                             textoA, textoE, maxTotal) {
+                             textoA, textoE, maxTotal, previo) {
                 const el = document.getElementById(divId);
                 if (!el) return;
                 let c = echarts.getInstanceByDom(el);
                 if (!c) c = echarts.init(el, 'montserrat', {renderer: 'svg'});
 
                 const total = (valorA || 0) + (valorE || 0) || 1;
+
+                // Tooltip solo para la barra que recibe 'previo' (la de 2026):
+                // muestra, por segmento, la variación contra el año anterior,
+                // con ese año como base —misma cuenta que el tooltip de las
+                // barras de episodios—. Para 2025 no se pasa 'previo' y la
+                // gráfica va sin tooltip, como antes.
+                const anioPrevio = String((+anio) - 1);
+                const tooltip = previo
+                    ? {
+                        trigger: 'item',
+                        formatter: function (p) {
+                            const nombre = p.seriesIndex === 0 ? 'Alertas' : 'Emergencias';
+                            const valor  = p.value || 0;
+                            let html = '<b>' + nombre + '</b><br/>' +
+                                       anio + ': ' + valor;
+                            const base = previo[p.seriesIndex] || 0;
+                            let comp;
+                            if (!base) {
+                                comp = 'sin registro en ' + anioPrevio;
+                            } else if (valor === base) {
+                                comp = 'igual que en ' + anioPrevio;
+                            } else {
+                                const pct = Math.abs(valor - base) / base * 100;
+                                const txt = pct < 10
+                                    ? pct.toFixed(1).replace(/\\.0$/, '')
+                                    : String(Math.round(pct));
+                                comp = txt + '% ' + (valor > base ? 'más' : 'menos') +
+                                       ' comparado al ' + anioPrevio;
+                            }
+                            return html + '<br/>' + comp;
+                        }
+                    }
+                    : {show: false};
                 // Segmentos con menos del 20 % del total muestran solo el número;
                 // los demás muestran nombre + número (aunque el nombre se corte).
                 // En escritorio el umbral baja al 12 % porque la barra es más ancha.
@@ -4052,6 +4085,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                     animationDuration: 0,
                     animationDurationUpdate: 0,
                     stateAnimation: {duration: 300, easing: 'cubicOut'},
+                    tooltip: tooltip,
                     grid: {top: 8, bottom: 8, left: 8, right: 34, containLabel: true},
                     xAxis: {type: 'value', show: false, max: maxTotal},
                     yAxis: {
@@ -4156,7 +4190,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             dibujar('echart-barras-alertas-26', '2026',
                     datos.alertas_26, datos.emergencias_26,
                     datos.color_a26, datos.color_e26,
-                    datos.texto_a26, datos.texto_e26, maxTotal);
+                    datos.texto_a26, datos.texto_e26, maxTotal,
+                    [datos.alertas_25, datos.emergencias_25]);
 
             // Foco cruzado entre las dos barras (2025 y 2026), que son
             // instancias de ECharts distintas: al posar el cursor sobre
@@ -4198,7 +4233,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                 dibujar('echart-barras-alertas-26', '2026',
                         datos.alertas_26, datos.emergencias_26,
                         datos.color_a26, datos.color_e26,
-                        datos.texto_a26, datos.texto_e26, maxTotal);
+                        datos.texto_a26, datos.texto_e26, maxTotal,
+                        [datos.alertas_25, datos.emergencias_25]);
                 enlazarFocoAlertas();
             };
             window.addEventListener('resize', window.__alertasResizeHandler);
