@@ -2066,6 +2066,18 @@ def _kpi_dato(etiqueta: str, valor, color_punto: str = None):
     ], style={'textAlign': 'center'})
 
 
+def _periodo_corte() -> str:
+    """
+    'Registro del 1 de enero al 8 de septiembre de 2026' — el rango que cubren
+    los datos. El corte es el día anterior, igual que _fecha_encabezado: el
+    dashboard refleja datos cerrados al día previo.
+    """
+    utc_minus_6 = timezone(timedelta(hours=-6))
+    ayer = datetime.now(utc_minus_6) - timedelta(days=1)
+    return (f"Registro del 1 de enero al {ayer.day} de "
+            f"{_MESES_NOMBRE[ayer.month].lower()} de {ayer.year}")
+
+
 def _kpi_total(etiqueta: str, valor):
     """
     Encabezado de la ficha: sustituye al título. La etiqueta va en el aqua de
@@ -2073,14 +2085,23 @@ def _kpi_total(etiqueta: str, valor):
     que reemplaza); la cifra —el número más importante— se queda en gris
     oscuro para no perderse sobre el tinte aqua diluido del recuadro.
 
+    Debajo de la etiqueta, en letra muy chica, el periodo que cubren los datos.
+
     Ocupa todo el ancho (la tarjeta tiene padding 0 y overflow hidden), con
     un filo abajo que lo separa del desglose.
     """
     return html.Div([
-        html.Span(etiqueta, style={
-            'color': COLOR_2026, 'fontSize': '14px', 'fontWeight': '800',
-            'textTransform': 'uppercase', 'letterSpacing': '0.06em',
-        }),
+        html.Div([
+            html.Span(etiqueta, style={
+                'color': COLOR_2026, 'fontSize': '14px', 'fontWeight': '800',
+                'textTransform': 'uppercase', 'letterSpacing': '0.06em',
+            }),
+            html.Div(_periodo_corte(), style={
+                'color': COLOR_GRIS_MUTE, 'fontSize': '9.5px', 'fontWeight': '600',
+                'letterSpacing': '0', 'marginTop': '2px',
+                'fontFamily': 'Montserrat, sans-serif', 'textTransform': 'none',
+            }),
+        ]),
         html.Span(str(valor), style={
             'color': '#173d4c', 'fontWeight': '800', 'fontSize': '32px', 'lineHeight': '1',
         }),
@@ -4048,7 +4069,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                             const nombre = p.seriesIndex === 0 ? 'Alertas' : 'Emergencias';
                             const valor  = p.value || 0;
                             let html = '<b>' + nombre + '</b><br/>' +
-                                       anio + ': ' + valor;
+                                       anio + ': ' + valor + ' eventos';
                             const base = previo[p.seriesIndex] || 0;
                             let comp;
                             if (!base) {
