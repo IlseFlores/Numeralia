@@ -1502,9 +1502,29 @@ def run_alertas(sh_2025, sh_2026, spreadsheet_destino, hoja_alertas: str = "ALER
 # SECCIÓN 6: DASHBOARD (Dash) — mapa + Episodios + Alertas + IMECA Máximo
 # ============================================================================
 
-MALA_25, MALA_26     = '2025: Días con mala calidad', '2026: Días con mala calidad'
-BUENA_25, BUENA_26   = '2025: Días con buena a aceptable', '2026: Días con buena a aceptable'
-SINDATO_25, SINDATO_26 = '2025: Días sin dato', '2026: Días sin dato'
+from numeralia.reporte.formato import (                        # noqa: E402
+    BUENA_25,
+    BUENA_26,
+    MALA_25,
+    MALA_26,
+    SINDATO_25,
+    SINDATO_26,
+    _MESES_NOMBRE,
+    _buscar_columna,
+    _clasificar_imeca,
+    _fecha_encabezado,
+    _fecha_mes_abreviado,
+    _formatear_hora,
+    _ordenar_por_no_desc,
+    _siguiente_clases_bitacoras,
+    _sin_acentos,
+    _to_num,
+)
+from numeralia.reporte.figuras import (                        # noqa: E402
+    _fig_a_base64,
+    _fig_mapa,
+    _fig_serie_buena_mensual,
+)
 
 from numeralia.reporte.tema import (                              # noqa: E402
     CARD_STYLE,
@@ -1608,20 +1628,6 @@ def _logo_src(nombre_archivo: str):
     return None
 
 
-def _fecha_encabezado() -> str:
-    """
-    Fecha de ayer como '20 DE AGOSTO DEL 2026'.
-
-    El dashboard refleja datos cerrados al día anterior, así que la fecha se
-    calcula sola cada vez que se levanta. Se usa _MESES_NOMBRE en vez de
-    strftime('%B') porque ese depende del locale y en Colab devolvería el
-    mes en inglésssss.
-    """
-    utc_minus_6 = timezone(timedelta(hours=-6))
-    ayer = datetime.now(utc_minus_6) - timedelta(days=1)
-    return f"{ayer.day} DE {_MESES_NOMBRE[ayer.month].upper()} DEL {ayer.year}"
-
-
 def _encabezado_reporte():
     """
     Encabezado del reporte: logo SIMAJ a la izquierda, título centrado con la
@@ -1677,234 +1683,7 @@ def _encabezado_reporte():
     ], style={'marginBottom': '32px'})
 
 
-def _tendencia_buena(row) -> str:
-    """Misma lógica que la columna 'Tendencia' de tu reporte en PDF: compara
-    los días con buena/aceptable calidad, no los de mala calidad."""
-    delta = row[BUENA_26] - row[BUENA_25]
-    if delta > 0:
-        return '▲ mejora'
-    if delta < 0:
-        return '▼ empeora'
-    return '● sin cambio'
-
-
-def _fig_mapa(df: pd.DataFrame):
-    d = df.copy()
-    d['cambio_mala'] = d[MALA_26] - d[MALA_25]
-    d['abs_cambio'] = d['cambio_mala'].abs()
-    d['tendencia'] = d.apply(_tendencia_buena, axis=1)
-
-    fig = px.scatter_map(
-        d, lat='Latitud', lon='Longitud',
-        color='cambio_mala', size='abs_cambio',
-        color_continuous_scale=[[0, COLOR_GOOD], [0.5, '#d1d5db'], [1, COLOR_BAD]],
-        range_color=[-d['abs_cambio'].max(), d['abs_cambio'].max()],
-        hover_name='Estación',
-        custom_data=[d[BUENA_26], d['Estación']],
-        # Sin 'height': el alto lo pone el contenedor desde CSS, que es lo que
-        # permite achicarlo en tablet y celular sin tocar Python. La imagen
-        # para el PDF se genera aparte con medidas explícitas
-        # (_fig_a_base64), así que no depende de esto.
-        size_max=30, zoom=10.3,
-        labels={'cambio_mala': 'Cambio días mala calidad'},
-    )
-    # Etiquetas de nombre sobre cada burbuja + hover con días buena/aceptable.
-    # mode='markers+text' agrega el texto directamente al trace sin crear
-    # uno adicional, lo que mantiene un solo curveNumber en hoverData.
-    fig.update_traces(
-        text=d['Estación'].tolist(),
-        textposition='top center',
-        textfont=dict(size=12, color='#2d3436', weight='bold'),
-        mode='markers+text',
-        hovertemplate="<b>%{customdata[1]}</b><br>Días buena/aceptable 2026: %{customdata[0]}<extra></extra>",
-    )
-
-    # Centro explícito: el auto-fit de plotly.js para el trace 'map' (maplibre)
-    # no siempre calcula el centro a partir de los datos, y sin esto el mapa
-    # cae en lat=0/lon=0 (medio del océano) en vez de Jalisco.
-    fig.update_layout(map_style='carto-positron', template=PLOTLY_TEMPLATE,
-                       coloraxis_showscale=False,
-                       map=dict(center=dict(lat=d['Latitud'].mean(), lon=d['Longitud'].mean())),
-                       margin=dict(l=0, r=0, t=10, b=0))
-    return fig
-
-
-def _fig_a_base64(fig, ancho: int = 1000, alto: int = 520):
-    """
-    Renderiza una figura de Plotly a PNG desde Python (con kaleido) y la
-    devuelve como data URI.
-
-    Esto existe por el mapa: en el navegador se dibuja con WebGL y su canvas
-    no se puede leer de forma confiable —el buffer se vacía tras pintar y los
-    mosaicos de CARTO vienen de otro dominio, lo que lo "contamina"—, así que
-    capturarlo desde JavaScript falla. Generando la imagen aquí, del lado del
-    servidor, el PDF recibe una foto fija del mapa sin depender de nada del
-    navegador.
-
-    Si kaleido no está instalado devuelve None y el PDF cae al método de
-    captura por JavaScript, que puede o no funcionar.
-    """
-    try:
-        datos = fig.to_image(format='png', width=ancho, height=alto, scale=1.5)
-        return 'data:image/png;base64,' + base64.b64encode(datos).decode('ascii')
-    except Exception as e:
-        print(f"Nota: No se pudo pre-generar la imagen del mapa para el PDF: {e}")
-        print("  Instala kaleido si quieres el mapa en el PDF:  %pip install kaleido -q")
-        return None
-
-
 # ── Serie de tiempo mensual: días buena/aceptable calidad ──────────────────
-
-_MESES_ORDEN = {
-    'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6,
-    'julio': 7, 'agosto': 8, 'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12,
-}
-_MESES_NOMBRE = {v: k.capitalize() for k, v in _MESES_ORDEN.items()}
-
-
-def _normalizar_mes(valor):
-    """Acepta el mes como nombre en español (con/sin acentos, cualquier mayúscula)
-    o como número 1-12; regresa (numero_mes, nombre_mes) o (None, valor) si no
-    se reconoce."""
-    s = _sin_acentos(valor).strip().lower()
-    if s in _MESES_ORDEN:
-        n = _MESES_ORDEN[s]
-        return n, _MESES_NOMBRE[n]
-    try:
-        n = int(float(s))
-        if 1 <= n <= 12:
-            return n, _MESES_NOMBRE[n]
-    except (ValueError, TypeError):
-        pass
-    return None, str(valor)
-
-
-def _fig_serie_buena_mensual(df_resumen: pd.DataFrame):
-    """
-    Serie de tiempo mensual ACUMULADA (2025 azul marino vs 2026 aqua) de días
-    con buena/aceptable calidad IAS. Lee columnas A-C de 'Resumen MENSUAL'
-    por posición (AÑO, MES, GLOBAL BUENA O ACEPTABLE IAS).
-
-    La línea es acumulada: cada mes muestra el total del año hasta ese mes,
-    por eso nunca baja. Los meses que aún no tienen dato en Sheets se cortan
-    al final, así la línea de 2026 se extiende sola conforme se capturan.
-
-    Arriba de la gráfica va un cintillo con dos pastillas por mes (2026
-    encima, 2025 debajo) con el acumulado de cada año. Las pastillas se
-    dibujan como 'shapes' con trazado propio porque las anotaciones de
-    Plotly no admiten esquinas redondeadas ni ancho fijo; el número va
-    encima como anotación sin fondo.
-    """
-    cols = list(df_resumen.columns)
-    fig = go.Figure()
-    if len(cols) < 3:
-        fig.update_layout(template=PLOTLY_TEMPLATE,
-                           margin=dict(l=60, r=20, t=20, b=50))
-        return fig
-
-    col_anio, col_mes, col_buena = cols[0], cols[1], cols[2]
-    base = df_resumen[[col_anio, col_mes, col_buena]].copy()
-    base['_anio'] = pd.to_numeric(base[col_anio], errors='coerce')
-    base[['_mes_num', '_mes_nombre']] = base[col_mes].apply(lambda v: pd.Series(_normalizar_mes(v)))
-    base['_valor'] = pd.to_numeric(base[col_buena], errors='coerce')
-    base = base.dropna(subset=['_mes_num'])
-
-    anotaciones = []
-    figuras = []
-    ALTURA_CINTILLO = {2026: 1.22, 2025: 1.08}
-
-    ANCHO_PASTILLA = 0.12      # en unidades de categoría (medio ancho)
-    ALTO_PASTILLA = 0.05       # en fracción del alto del lienzo
-    # El radio va en las mismas unidades mixtas que la pastilla, así que para
-    # que la curva se vea igual en las cuatro esquinas hay que convertirlo a
-    # píxeles por separado en cada eje: una unidad de categoría mide
-    # ancho_del_área/12 px y una de 'paper' mide el alto de la figura (330 px).
-    # Con RADIO_X = 0.10 el radio se comía el 83% del medio ancho, no quedaba
-    # tramo recto en los lados y la pastilla salía abombada en vez de
-    # rectangular.
-    RADIO_X, RADIO_Y = 0.055, 0.016
-
-    def _pastilla(cx, cy, color):
-        """Rectángulo con esquinas redondeadas, en coordenadas mixtas:
-        X en unidades del eje categórico, Y en fracción del lienzo."""
-        x0, x1 = cx - ANCHO_PASTILLA, cx + ANCHO_PASTILLA
-        y0, y1 = cy - ALTO_PASTILLA, cy + ALTO_PASTILLA
-        return dict(
-            type='path', xref='x', yref='paper', layer='above',
-            path=(f'M {x0 + RADIO_X},{y0} L {x1 - RADIO_X},{y0} '
-                  f'Q {x1},{y0} {x1},{y0 + RADIO_Y} '
-                  f'L {x1},{y1 - RADIO_Y} Q {x1},{y1} {x1 - RADIO_X},{y1} '
-                  f'L {x0 + RADIO_X},{y1} Q {x0},{y1} {x0},{y1 - RADIO_Y} '
-                  f'L {x0},{y0 + RADIO_Y} Q {x0},{y0} {x0 + RADIO_X},{y0} Z'),
-            fillcolor=color, line=dict(width=0),
-        )
-
-    # Hasta qué mes llega la gráfica: el último mes con dato en 2026.
-    # Cuando el mes siguiente tenga registro, el rango crece automáticamente.
-    # Si 2026 no tiene ningún dato aún, se muestran todos los meses.
-    d_2026_check = base[(base['_anio'] == 2026) & base['_valor'].notna()]
-    ultimo_mes_2026 = int(d_2026_check['_mes_num'].max()) if not d_2026_check.empty else 12
-
-    for anio, color in [(2025, COLOR_2025), (2026, COLOR_2026)]:
-        # Solo se incluyen los meses hasta el último con dato en 2026
-        d = base[
-            (base['_anio'] == anio) &
-            base['_valor'].notna() &
-            (base['_mes_num'] <= ultimo_mes_2026)
-        ].sort_values('_mes_num')
-        if d.empty:
-            continue
-        # cumsum() convierte el valor mensual en acumulado del año a la fecha.
-        d = d.assign(_acumulado=d['_valor'].cumsum())
-        fig.add_trace(go.Scatter(
-            x=d['_mes_nombre'], y=d['_acumulado'],
-            mode='lines+markers',
-            name=str(anio),
-            line=dict(color=color, width=4, shape='linear'),
-            marker=dict(color=color, size=10, line=dict(color='#ffffff', width=1)),
-            hovertemplate=f'%{{y}} días acumulados <br> hasta %{{x}} {anio}<extra></extra>',
-        ))
-
-        alto = ALTURA_CINTILLO[anio]
-        for mes_num, mes, acumulado in zip(d['_mes_num'], d['_mes_nombre'], d['_acumulado']):
-            # El eje X es categórico y el categoryarray de abajo fija que el
-            # mes N viva en la posición N-1, que es lo que ubica la pastilla.
-            figuras.append(_pastilla(int(mes_num) - 1, alto, color))
-            anotaciones.append(dict(
-                x=mes, xref='x',
-                y=alto, yref='paper',
-                text=f'<b>{int(acumulado)}</b>',
-                showarrow=False, font=dict(size=13, color='#ffffff'),
-                # Sin el anclaje explícito, Plotly pega la anotación al borde
-                # y el número queda cortado a media pastilla.
-                xanchor='center', yanchor='middle', yshift=0,
-            ))
-
-    fig.update_layout(
-        template=PLOTLY_TEMPLATE,
-        # El alto lo pone el contenedor desde CSS (ver .grafica-serie-mensual
-        # en assets/responsive.css). Ojo: el cintillo se posiciona en fracción
-        # del lienzo ('paper'), así que su alto en píxeles sigue al del
-        # contenedor — que es justo lo que queremos.
-        margin=dict(l=60, r=20, t=95, b=50),
-        showlegend=True,
-        legend=dict(orientation='h', yanchor='bottom', y=1.30, xanchor='right', x=1,
-                    font=dict(size=14)),
-        annotations=anotaciones,
-        shapes=figuras,
-        plot_bgcolor='#ffffff',
-        paper_bgcolor='#ffffff',
-        yaxis=dict(title=dict(text='Días acumulados', standoff=14), rangemode='tozero',
-                    showgrid=True, gridcolor='#eef0f3', zeroline=False, showline=False,
-                    ticks='', automargin=True, tickfont=dict(size=14)),
-        xaxis=dict(title=None, showgrid=False, zeroline=False, showline=True,
-                    linecolor='#d7dbe2', ticks='', automargin=True, tickfont=dict(size=14),
-                    categoryorder='array',
-                    # El eje se extiende solo hasta el último mes con dato en 2026
-                    categoryarray=[_MESES_NOMBRE[i] for i in range(1, ultimo_mes_2026 + 1)]),
-    )
-    return fig
-
 
 def _card_serie_mensual_2025(df_resumen: pd.DataFrame):
     hoy = datetime.now()
@@ -1999,13 +1778,6 @@ def _tabla_detalle_estacion(estacion: str, row: pd.Series):
 
 
 # ── KPI cards ────────────────────────────────────────────────────────────
-
-def _to_num(v):
-    try:
-        return float(str(v).replace(',', ''))
-    except (TypeError, ValueError):
-        return None
-
 
 # Estilo compartido por las tres fichas de la fila superior, para que queden
 # de la misma altura y con el mismo marco aunque su contenido sea distinto.
@@ -2552,62 +2324,6 @@ def _datos_barras_alertas(df_alertas: pd.DataFrame) -> dict:
 
 # ── Tarjeta de IMECA Máximo ──────────────────────────────────────────────
 
-def _clasificar_imeca(valor) -> str:
-    v = _to_num(valor)
-    if v is None:
-        return "Sin dato"
-    if v <= 50:
-        return "Buena"
-    if v <= 100:
-        return "Aceptable"
-    if v <= 150:
-        return "Mala"
-    if v <= 200:
-        return "Muy mala"
-    return "Extremadamente mala"
-
-
-_MES_ABREV = {
-    1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun',
-    7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic',
-}
-
-
-def _fecha_mes_abreviado(valor) -> str:
-    """
-    Convierte '01/02/2026' en '01/Feb/2026'.
-
-    Se usa un diccionario propio en vez de strftime('%b') porque ese depende
-    del locale: en Colab saldría en inglés. Si el texto no tiene el formato
-    esperado se devuelve tal cual, para no romper la tarjeta.
-    """
-    texto = str(valor).strip()
-    partes = texto.split('/')
-    if len(partes) != 3:
-        return texto
-    dia, mes, anio = partes
-    try:
-        return f"{dia}/{_MES_ABREV[int(mes)]}/{anio}"
-    except (ValueError, KeyError):
-        return texto
-
-
-def _formatear_hora(hora) -> str:
-    """Deja la hora en formato H:MM a.m./p.m., sin segundos."""
-    s = str(hora).strip().replace('.', '').lower()
-    s = s.replace('p.m', ' PM').replace('a.m', ' AM')
-    s = s.replace('pm', ' PM').replace('am', ' AM')
-    for fmt in ('%I:%M:%S %p', '%I:%M %p', '%H:%M:%S', '%H:%M'):
-        try:
-            dt = datetime.strptime(s, fmt)
-            h12 = dt.hour % 12 or 12
-            ampm = 'a.m.' if dt.hour < 12 else 'p.m.'
-            return f"{h12}:{dt.minute:02d} {ampm}"
-        except ValueError:
-            pass
-    return str(hora)
-
-
 def _card_imeca(df_imeca: pd.DataFrame):
     d = df_imeca.set_index(df_imeca.columns[0])
 
@@ -2668,20 +2384,6 @@ def _card_imeca(df_imeca: pd.DataFrame):
 
 
 # ── Ficha de Eventos Activos 2026 ───────────────────────────────────────────
-
-def _sin_acentos(s: str) -> str:
-    return ''.join(c for c in unicodedata.normalize('NFD', str(s)) if unicodedata.category(c) != 'Mn')
-
-
-def _buscar_columna(columnas, *fragmentos):
-    """Busca la primera columna cuyo nombre (sin acentos, en minúsculas) contenga
-    alguno de los fragmentos dados. Devuelve None si no encuentra ninguna."""
-    for c in columnas:
-        norm = _sin_acentos(c).lower()
-        if any(frag in norm for frag in fragmentos):
-            return c
-    return None
-
 
 def _eventos_activos_2026(df_alertas_2026: pd.DataFrame):
     """
@@ -2869,20 +2571,6 @@ def _card_eventos_activos(eventos_alertas, eventos_episodios=None):
 
 # ── Bitácoras completas (tablas paginadas) ──────────────────────────────────
 
-def _siguiente_clases_bitacoras(trigger: str, clase_alertas: str, clase_episodios: str):
-    """
-    Decide el nuevo par de clases ('bitacora-abierta'/'bitacora-cerrada') a
-    partir de qué título disparó el clic. Vive separada del callback para
-    poder probarla sin un contexto de Dash: el callback solo lee
-    ``callback_context`` y le pasa el resultado a esta función.
-    """
-    if trigger == 'bitacora-alertas-header':
-        clase_alertas = 'bitacora-cerrada' if clase_alertas == 'bitacora-abierta' else 'bitacora-abierta'
-    elif trigger == 'bitacora-episodios-header':
-        clase_episodios = 'bitacora-cerrada' if clase_episodios == 'bitacora-abierta' else 'bitacora-abierta'
-    return clase_alertas, clase_episodios
-
-
 def _tabla_paginada(df: pd.DataFrame, id_tabla: str, columna_color: str = None,
                      mapa_color: dict = None, texto_claro_valores: tuple = ()):
     """
@@ -2918,21 +2606,6 @@ def _tabla_paginada(df: pd.DataFrame, id_tabla: str, columna_color: str = None,
         style_data_conditional=style_data_conditional,
         style_as_list_view=True,
     )
-
-
-def _ordenar_por_no_desc(df: pd.DataFrame) -> pd.DataFrame:
-    """Ordena por la columna 'No' (primera columna) de mayor a menor, si es numérica.
-    Descarta filas vacías que suelen quedar al final de la hoja de cálculo."""
-    if df.empty:
-        return df
-    col_no = df.columns[0]
-    d = df.copy()
-    d = d[d[col_no].notna() & d[col_no].astype(str).str.strip().ne('')]
-    if d.empty:
-        return d
-    d['_no_num'] = pd.to_numeric(d[col_no], errors='coerce')
-    d = d.sort_values('_no_num', ascending=False).drop(columns='_no_num')
-    return d
 
 
 def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
