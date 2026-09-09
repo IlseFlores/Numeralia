@@ -3829,41 +3829,37 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
                                        p.name + ': ' + valor + ' episodios';
 
                             // Tercera línea: cómo se compara ESTE contaminante
-                            // contra el otro año. La leyenda de la barra ya dice
-                            // el dato crudo; lo que no se ve de un vistazo es la
-                            // variación, y es justo lo que se busca al pasar el
-                            // mouse. Se lee del mismo cfg que alimenta la serie
-                            // (índice de serie = contaminante, dataIndex = año).
+                            // contra el año previo. Solo se muestra en la barra
+                            // de 2026 (dataIndex 1) y solo para Ozono y PM10 —
+                            // en 2025 no aplica (sería contra sí mismo) y para
+                            // PM2.5 se dejó fuera a propósito. La leyenda de la
+                            // barra ya da el dato crudo; lo que no se ve de un
+                            // vistazo es la variación, y es lo que se busca al
+                            // pasar el mouse.
+                            const CONTAM_CON_PCT = ['Ozono', 'PM10'];
                             const serie = cfg.series[p.seriesIndex];
-                            if (serie) {
-                                const otroIdx  = p.dataIndex === 0 ? 1 : 0;
-                                const otroAnio = cfg.anios[otroIdx];
-                                const otro     = serie.datos[otroIdx] || 0;
-                                // La base es SIEMPRE el año previo (índice 0),
-                                // no el año que se señala. Así la barra de 2025
-                                // y la de 2026 muestran el mismo porcentaje —la
-                                // brecha entre años como fracción del año de
-                                // referencia— y solo cambia "más" / "menos".
-                                // Si la base fuera el otro año, señalar 2025
-                                // daría cifras enormes (dividir entre el año en
-                                // curso, con pocos episodios).
+                            if (serie && p.dataIndex === 1 &&
+                                CONTAM_CON_PCT.indexOf(p.seriesName) !== -1) {
+                                const anioPrevio = cfg.anios[0];
+                                // Base = año previo (2025). El porcentaje es la
+                                // brecha entre años como fracción de ese año.
                                 const base = serie.datos[0] || 0;
                                 let comp;
                                 if (!base) {
                                     // Sin base no hay porcentaje: dividir entre 0
-                                    // daría Infinity y "∞% más" no dice nada.
-                                    comp = 'sin episodios en ' + cfg.anios[0];
-                                } else if (valor === otro) {
-                                    comp = 'igual que en ' + otroAnio;
+                                    // daría Infinity y "∞% menos" no dice nada.
+                                    comp = 'sin episodios en ' + anioPrevio;
+                                } else if (valor === base) {
+                                    comp = 'igual que en ' + anioPrevio;
                                 } else {
-                                    const pct = Math.abs(valor - otro) / base * 100;
+                                    const pct = Math.abs(valor - base) / base * 100;
                                     // Un decimal solo por debajo de 10 %, donde
                                     // redondear a entero borra la diferencia.
                                     const txt = pct < 10
                                         ? pct.toFixed(1).replace(/\\.0$/, '')
                                         : String(Math.round(pct));
-                                    comp = txt + '% ' + (valor > otro ? 'más' : 'menos') +
-                                           ' comparado al ' + otroAnio;
+                                    comp = txt + '% ' + (valor > base ? 'más' : 'menos') +
+                                           ' comparado al ' + anioPrevio;
                                 }
                                 html += '<br/>' + comp;
                             }
