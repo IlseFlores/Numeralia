@@ -12,6 +12,16 @@ import re
 import pandas as pd
 import pytest
 
+from numeralia.reporte.datos_graficas import (
+    _ORDEN_CONTAMINANTES,
+    _datos_grafica_episodios,
+)
+from numeralia.reporte.figuras import (
+    _fig_mapa,
+    _fig_serie_buena_mensual,
+)
+from numeralia.reporte.formato import BUENA_25, BUENA_26, MALA_25, MALA_26
+from numeralia.reporte.tarjetas import _card_serie_mensual_2025
 from numeralia.reporte.tema import (
     COLOR_2025,
     COLOR_2026,
@@ -50,7 +60,7 @@ def _df_episodios():
 
 @pytest.fixture
 def datos_grafica():
-    return original._datos_grafica_episodios(
+    return _datos_grafica_episodios(
         _df_episodios(), "2025", "2026", 1, "Precontingencias atmosféricas")
 
 
@@ -106,7 +116,7 @@ class TestDatosGraficaEpisodios:
 
     def test_las_series_van_en_el_orden_de_apilado(self, datos_grafica):
         nombres = [s["nombre"] for s in datos_grafica["series"]]
-        assert nombres == list(original._ORDEN_CONTAMINANTES)
+        assert nombres == list(_ORDEN_CONTAMINANTES)
 
     def test_una_escala_por_anio_con_un_tono_por_contaminante(self, datos_grafica):
         # El JS hace escalas_anio[j][i] con los mismos índices.
@@ -123,7 +133,7 @@ class TestDatosGraficaEpisodios:
 
     def test_separa_las_severidades(self):
         # La Fase I no debe arrastrar los números de las precontingencias.
-        f1 = original._datos_grafica_episodios(
+        f1 = _datos_grafica_episodios(
             _df_episodios(), "2025", "2026", 2, "Contingencias Fase I")
         assert f1["totales"] == [20, 8]
 
@@ -193,7 +203,7 @@ def _df_resumen_mensual(meses_2026: int = 7):
 
 @pytest.fixture
 def figura_mensual():
-    return original._fig_serie_buena_mensual(_df_resumen_mensual())
+    return _fig_serie_buena_mensual(_df_resumen_mensual())
 
 
 class TestFiguraSerieMensual:
@@ -207,7 +217,7 @@ class TestFiguraSerieMensual:
         assert len(figura_mensual.layout.shapes) == len(figura_mensual.layout.annotations)
 
     def test_el_cintillo_crece_con_los_meses_capturados(self):
-        completa = original._fig_serie_buena_mensual(_df_resumen_mensual(meses_2026=12))
+        completa = _fig_serie_buena_mensual(_df_resumen_mensual(meses_2026=12))
         assert len(completa.layout.shapes) == 24
 
     def test_el_margen_superior_aloja_el_cintillo(self, figura_mensual):
@@ -234,7 +244,7 @@ class TestFiguraSerieMensual:
     def test_tampoco_lo_fija_la_version_sin_datos(self):
         # La rama de respaldo (hoja con menos de 3 columnas) también tiene que
         # dejar el alto al contenedor.
-        vacia = original._fig_serie_buena_mensual(pd.DataFrame({"A": [1], "B": [2]}))
+        vacia = _fig_serie_buena_mensual(pd.DataFrame({"A": [1], "B": [2]}))
         assert vacia.layout.height is None
 
     def test_el_eje_llega_al_ultimo_mes_de_2026(self, figura_mensual):
@@ -304,7 +314,7 @@ class TestTarjetaSerieMensual:
 
     @pytest.fixture
     def tarjeta(self):
-        return original._card_serie_mensual_2025(_df_resumen_mensual())
+        return _card_serie_mensual_2025(_df_resumen_mensual())
 
     def _por_id(self, tarjeta, id_buscado):
         return next((c for c in tarjeta.children
@@ -349,12 +359,12 @@ class TestFiguraMapa:
             "Estación": ["AGU", "CEN", "TLA"],
             "Latitud": [20.62, 20.67, 20.64],
             "Longitud": [-103.42, -103.35, -103.44],
-            original.MALA_25: [10, 20, 30],
-            original.MALA_26: [5, 25, 30],
-            original.BUENA_25: [100, 90, 80],
-            original.BUENA_26: [120, 85, 80],
+            MALA_25: [10, 20, 30],
+            MALA_26: [5, 25, 30],
+            BUENA_25: [100, 90, 80],
+            BUENA_26: [120, 85, 80],
         })
-        return original._fig_mapa(df)
+        return _fig_mapa(df)
 
     def test_no_fija_el_alto(self, figura_mapa):
         assert figura_mapa.layout.height is None
