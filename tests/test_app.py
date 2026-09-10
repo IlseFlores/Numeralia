@@ -11,6 +11,7 @@ import os
 import pandas as pd
 import pytest
 
+from numeralia.reporte import app as app_modulo
 from numeralia.reporte.app import build_dash_app
 
 
@@ -72,6 +73,48 @@ def test_los_assets_apuntan_a_la_raiz_del_repo(app):
 
 
 def test_sin_gc_no_registra_los_callbacks_de_refresco(app):
-    # Los dos callbacks que releen de Sheets solo se registran si hay conexión.
+    # Los dos callbacks que releen de Sheets solo se releen si hay conexión.
     salidas = {str(k) for k in app.callback_map}
     assert not any("ficha-eventos-activos" in s for s in salidas)
+
+
+class TestRaizRepoConInstalacionNoEditable:
+    """
+    ``_raiz_repo()`` asumía que 4 niveles arriba de app.py siempre es la raíz
+    del repo (cierto con ``pip install -e .``, la instalación de desarrollo).
+    Con una instalación real (``pip install .``, la que hace el Dockerfile)
+    el paquete se copia a site-packages y esos mismos 4 niveles caen en el
+    directorio de Python — assets/dashboard.js queda invisible y el
+    dashboard se levanta sin JS clientside, sin avisar. Así se descubrió: el
+    test de Docker en CI pasaba localmente (instalación editable) y tronaba
+    en el contenedor.
+
+    Esta prueba simula justo esa instalación no editable, moviendo
+    ``app.__file__`` a una ruta sin 'assets/' cerca, y confirma que
+    ``_raiz_repo()`` cae al directorio de trabajo — que es lo que el
+    Dockerfile garantiza con ``WORKDIR /app`` + ``COPY . .``.
+    """
+
+    def test_cae_al_directorio_de_trabajo_si_parents3_no_tiene_assets(self, monkeypatch, tmp_path):
+        # Reproduce dónde vive app.py con `pip install .` (no editable): un
+        # site-packages cualquiera, sin 'assets/' en ningún nivel cercano.
+        ruta_falsa = tmp_path / "site-packages" / "numeralia" / "reporte" / "app.py"
+        monkeypatch.setattr(app_modulo, "__file__", str(ruta_falsa))
+
+        # Y el WORKDIR real del contenedor: la raíz del repo, que sí trae
+        # assets/dashboard.js (ver conftest/repo real, no tmp_path).
+        raiz_real = os.getcwd()
+        monkeypatch.chdir(raiz_real)
+
+        raiz = app_modulo._raiz_repo()
+        assert (raiz / "assets" / "dashboard.js").exists()
+
+    def test_si_ni_parents3_ni_cwd_tienen_assets_no_truena(self, monkeypatch, tmp_path):
+        ruta_falsa = tmp_path / "site-packages" / "numeralia" / "reporte" / "app.py"
+        monkeypatch.setattr(app_modulo, "__file__", str(ruta_falsa))
+        monkeypatch.chdir(tmp_path)  # tmp_path tampoco tiene assets/
+
+        # No debe reventar: se queda con la última candidata (cwd) y deja
+        # que Dash avise con su propio error al no encontrar el archivo.
+        raiz = app_modulo._raiz_repo()
+        assert raiz == tmp_path

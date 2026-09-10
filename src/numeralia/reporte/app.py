@@ -74,8 +74,38 @@ from numeralia.sheets import _df_nativo, _worksheet_a_df
 
 CONFIG = Config.desde_env()
 
-# Raíz del repositorio (…/src/numeralia/reporte/app.py -> parents[3]).
-_RAIZ_REPO = Path(__file__).resolve().parents[3]
+
+def _raiz_repo() -> Path:
+    """
+    Ruta a la raíz del repositorio (donde viven 'assets/' y 'logos/').
+
+    'Path(__file__).resolve().parents[3]' asume que este archivo vive en
+    <repo>/src/numeralia/reporte/app.py, lo cual solo es cierto con una
+    instalación editable (``pip install -e .``, como en el entorno de
+    desarrollo). Con una instalación real (``pip install .``, como hace el
+    Dockerfile) el paquete se copia dentro de site-packages y esos mismos
+    4 niveles caen en el directorio de Python, no en el repo — 'assets/'
+    y 'logos/' quedan invisibles y el dashboard se levanta sin
+    dashboard.js ni logos, sin avisar.
+
+    Por eso se prueban dos candidatas, en orden, y se usa la primera que
+    de verdad tenga 'assets/dashboard.js' adentro:
+      1. 4 niveles arriba de este archivo (instalación editable).
+      2. El directorio de trabajo (el Dockerfile hace WORKDIR /app y copia
+         ahí todo el repo antes de instalar el paquete, así que en
+         producción CONFIG.cwd() = la raíz del repo).
+    """
+    candidatas = [Path(__file__).resolve().parents[3], Path.cwd()]
+    for candidata in candidatas:
+        if (candidata / "assets" / "dashboard.js").exists():
+            return candidata
+    print(f"Nota: no se encontró 'assets/dashboard.js' en ninguna de estas rutas: "
+          f"{[str(c) for c in candidatas]}. Los callbacks clientside del "
+          f"dashboard (mapa, PDF, gráficas) no van a funcionar.")
+    return candidatas[-1]
+
+
+_RAIZ_REPO = _raiz_repo()
 _ASSETS = _RAIZ_REPO / "assets"
 
 # Respaldo para que el archivo siga corriendo tal cual en Colab; en un
