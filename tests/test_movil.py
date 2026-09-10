@@ -26,6 +26,7 @@ original = pytest.importorskip(
 )
 
 from numeralia.reporte import datos_graficas, formato, tarjetas  # noqa: E402
+from numeralia.transformacion import alertas, episodios  # noqa: E402
 
 RAIZ = original.__file__
 import pathlib  # noqa: E402
@@ -47,7 +48,7 @@ class TestContarEpisodios:
             ("PreContingencia Atmosférica", "PM10"),
             ("PreContingencia Atmosférica", "PM2.5"),
         ])
-        r = original._contar_episodios(df)
+        r = episodios._contar_episodios(df)
         assert r["Precontingencias atmosféricas:"] == 4
         assert r["   Precontingencias declaradas por Ozono"] == 2
         assert r["   Precontingencias declaradas por PM10"] == 1
@@ -58,7 +59,7 @@ class TestContarEpisodios:
             ("Contingencia Atmosférica Fase I", "O3"),
             ("Contingencia Atmosférica Fase I", "PM10"),
         ])
-        r = original._contar_episodios(df)
+        r = episodios._contar_episodios(df)
         assert r["Contingencias atmosféricas Fase I:"] == 2
         assert r["   Contingencias declaradas por Ozono"] == 1
         assert r["   Contingencias declaradas por PM10"] == 1
@@ -68,7 +69,7 @@ class TestContarEpisodios:
             ("Contingencia Atmosférica Fase II", "O3"),
             ("Contingencia Atmosférica Fase III", "PM10"),
         ])
-        r = original._contar_episodios(df)
+        r = episodios._contar_episodios(df)
         assert r["Contingencias atmosféricas Fase II:"] == 1
         assert r["Contingencias atmosféricas Fase III:"] == 1
 
@@ -78,18 +79,18 @@ class TestContarEpisodios:
             ("Contingencia Atmosférica Fase I", "PM10"),
             ("Contingencia Atmosférica Fase II", "PM2.5"),
         ])
-        assert original._contar_episodios(df)["Episodios Totales"] == 3
+        assert episodios._contar_episodios(df)["Episodios Totales"] == 3
 
     def test_ignora_espacios_y_mayusculas_no_afectan_el_contaminante(self):
         # El código hace .str.strip().str.replace(' ', ''); 'PM 10' debe
         # seguir contando como PM10.
         df = self._df([("PreContingencia Atmosférica", "PM 10")])
-        r = original._contar_episodios(df)
+        r = episodios._contar_episodios(df)
         assert r["   Precontingencias declaradas por PM10"] == 1
 
     def test_dataframe_vacio_da_todo_en_cero(self):
         df = pd.DataFrame(columns=["Evento", "Contaminante"])
-        r = original._contar_episodios(df)
+        r = episodios._contar_episodios(df)
         assert all(v == 0 for v in r.values())
 
 
@@ -98,19 +99,19 @@ class TestContarAlertas:
         return pd.DataFrame({"Fase Decretada": fases})
 
     def test_cuenta_alertas_y_emergencias_por_separado(self):
-        r = original._contar_alertas(self._df(["Alerta", "Alerta", "Emergencia"]))
+        r = alertas._contar_alertas(self._df(["Alerta", "Alerta", "Emergencia"]))
         assert r["Alertas:"] == 2
         assert r["Emergencias:"] == 1
         assert r["Total Alertas y Emergencias"] == 3
 
     def test_valores_desconocidos_no_cuentan_en_ninguna_categoria(self):
-        r = original._contar_alertas(self._df(["Alerta", "Otra cosa", ""]))
+        r = alertas._contar_alertas(self._df(["Alerta", "Otra cosa", ""]))
         assert r["Alertas:"] == 1
         assert r["Emergencias:"] == 0
         assert r["Total Alertas y Emergencias"] == 1
 
     def test_recorta_espacios_alrededor_del_valor(self):
-        r = original._contar_alertas(self._df(["  Alerta  ", " Emergencia "]))
+        r = alertas._contar_alertas(self._df(["  Alerta  ", " Emergencia "]))
         assert r["Alertas:"] == 1
         assert r["Emergencias:"] == 1
 
@@ -311,7 +312,7 @@ class TestComparativoEpisodios:
             "Contaminante": ["O3"],
         })
 
-        comparativo = original.calcular_comparativo_episodios(df_2025, df_2026)
+        comparativo = episodios.calcular_comparativo_episodios(df_2025, df_2026)
         col_2025 = comparativo.columns[0]
         col_2026 = comparativo.columns[1]
 
@@ -331,7 +332,7 @@ class TestComparativoEpisodios:
             "Inicio": [pd.NaT],
             "Evento": ["PreContingencia Atmosférica"], "Contaminante": ["O3"],
         })
-        comparativo = original.calcular_comparativo_episodios(df_2025, df_2026)
+        comparativo = episodios.calcular_comparativo_episodios(df_2025, df_2026)
         col_2026 = comparativo.columns[1]
         assert comparativo.loc["Precontingencias atmosféricas:", col_2026] == 1
 

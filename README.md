@@ -8,9 +8,11 @@ Este archivo cubre la instalación y ejecución **como script `.py`** (fuera de
 Colab). Si vas a usarlo en Google Colab, las instrucciones están en el
 encabezado de [`main.py`](main.py).
 
-> **¿Vas a seguir el refactor?** Empieza por
-> **[HOJA_DE_RUTA.md](HOJA_DE_RUTA.md)**: qué falta, en qué orden, cómo
-> verificar cada paso y con qué trampas ya nos topamos.
+> **¿Vas a tocar la estructura del código?** El refactor de `main.py` a un
+> paquete por capas ya se hizo — ver [Estructura de archivos](#estructura-de-archivos)
+> abajo. **[HOJA_DE_RUTA.md](HOJA_DE_RUTA.md)** queda como bitácora: cómo se
+> hizo cada paso y con qué trampas nos topamos, por si hace falta repetir el
+> patrón en algo nuevo.
 
 ## Requisitos
 
@@ -211,37 +213,61 @@ cumplimiento diario. Hay además dos suites de seguridad del refactor:
 **El punto de entrada es `src/numeralia/cli.py`.** Es lo que corre
 `python -m numeralia`; todo lo demás es biblioteca que él usa.
 
-El proyecto está a medio migrar de un solo script a un paquete por capas, así
-que la orquestación y el dashboard todavía viven en `main.py`, en
-la raíz. El CLI le delega mientras dura la migración.
+El proyecto vivió como un solo script de ~4,900 líneas y se partió en un
+paquete por capas. Lo que queda en `main.py` es así **a propósito**, no por
+falta de tiempo: `ValidadorCalidadAire` (autocontenido, sin un lugar mejor
+donde vivir por ahora) y `run_full_pipeline`, el orquestador que amarra todo
+lo demás en una sola corrida. El CLI le delega esas dos cosas.
 
 ```
 .
 ├── src/numeralia/
-│   ├── cli.py             ← PUNTO DE ENTRADA. Argumentos, UTF-8, arranque.
-│   ├── __main__.py           Hace posible `python -m numeralia`
-│   ├── config.py             ÚNICO lugar que lee el entorno
-│   ├── consola.py            Salida en UTF-8 (consolas cp1252 de Windows)
-│   ├── cache.py              Caché con vencimiento para lecturas de Sheets
-│   ├── dominio/              Cálculo puro — no importa gspread ni dash
-│   │   ├── nom172.py           rangos del IAS y cumplimiento NOM
-│   │   ├── ias.py              índice diario y contaminante dominante
-│   │   ├── nowcast.py          NowCast y redondeo comercial
-│   │   └── suficiencia.py      criterios de datos suficientes
-│   └── reporte/
-│       ├── tema.py           Paleta, plantilla Plotly, medidas
-│       └── pdf.py            Bitácoras en PDF (fpdf2)
+│   ├── cli.py                 ← PUNTO DE ENTRADA. Argumentos, UTF-8, arranque.
+│   ├── __main__.py               Hace posible `python -m numeralia`
+│   ├── config.py                 ÚNICO lugar que lee el entorno
+│   ├── consola.py                Salida en UTF-8 (consolas cp1252 de Windows)
+│   ├── cache.py                  Caché con vencimiento para lecturas de Sheets
+│   ├── sheets.py                 Puente gspread ↔ pandas (leer/serializar hojas)
+│   │
+│   ├── dominio/                  Cálculo puro — no importa gspread ni dash
+│   │   ├── nom172.py               rangos del IAS y cumplimiento NOM
+│   │   ├── ias.py                  índice diario y contaminante dominante
+│   │   ├── nowcast.py              NowCast y redondeo comercial
+│   │   └── suficiencia.py          criterios de datos suficientes
+│   │
+│   ├── ingesta/                  Entrada de datos
+│   │   └── auth.py                 autenticación con Google (autenticar, _en_colab)
+│   │
+│   ├── transformacion/           Aplica el dominio a datos reales y escribe en Sheets
+│   │   ├── ias_nom.py              pipeline IAS/NOM: tabla diaria, numeralia, acumulado
+│   │   ├── episodios.py            Precontingencias/Contingencias + IMECA máximo
+│   │   └── alertas.py              Alertas y Emergencias
+│   │
+│   └── reporte/                  Todo lo que arma el dashboard de Dash
+│       ├── tema.py                 Paleta, plantilla Plotly, medidas
+│       ├── pdf.py                  Bitácoras en PDF (fpdf2)
+│       ├── formato.py              Helpers de texto/fecha/número, sin Dash
+│       ├── figuras.py              Mapa y serie mensual (Plotly)
+│       ├── datos_graficas.py       Datos para las gráficas del navegador (ECharts)
+│       ├── kpis.py                 Fichas KPI de la fila superior
+│       ├── tablas.py               Tablas comparativas y paginadas
+│       ├── tarjetas.py             Encabezado, IMECA, eventos activos, bitácoras
+│       └── app.py                  build_dash_app: ensambla todo + los callbacks
 │
-├── main.py                ← Resto sin migrar: orquestación, validador,
-│                            lectura de Sheets y dashboard. Se encoge
-│                            conforme avanzan los pasos de abajo.
+├── assets/
+│   ├── dashboard.js           Callbacks clientside (ECharts, zoom del mapa, PDF)
+│   ├── responsive.css         Cortes responsive (tablet)
+│   ├── responsive_movil.css   Cortes responsive (celular)
+│   └── favicon.ico
 │
-├── HOJA_DE_RUTA.md           Qué falta migrar, en qué orden y cómo
-├── pyproject.toml            Paquete, dependencias y comando `numeralia`
-├── requirements.txt          Dependencias sueltas (despliegue)
-├── .env.example              Plantilla de configuración
-├── .env                      Tus credenciales reales (NO se comparte)
-├── logos/                    Logos del encabezado (opcional)
+├── main.py                    Validador ENVISTA + run_full_pipeline (orquestador)
+│
+├── HOJA_DE_RUTA.md            Bitácora del refactor: pasos ya hechos y por qué
+├── pyproject.toml             Paquete, dependencias y comando `numeralia`
+├── requirements.txt           Dependencias sueltas (despliegue)
+├── .env.example                Plantilla de configuración
+├── .env                       Tus credenciales reales (NO se comparte)
+├── logos/                     Logos del encabezado (opcional)
 ├── tests/
 └── venv/
 ```
@@ -250,27 +276,9 @@ Dos reglas sostienen la estructura:
 
 1. **`dominio/` no importa `gspread` ni `dash`.** Si cambia la norma, se toca
    un módulo; si cambia Google o el dashboard, no se toca nada del cálculo.
-2. **Las dependencias van del CLI hacia adentro.** La única excepción es el
-   puente temporal `cli.py → main.py`, que desaparece cuando la
-   orquestación se mude al paquete.
-
-### Qué falta migrar
-
-Los pasos concretos, con sus trampas, están en
-**[HOJA_DE_RUTA.md](HOJA_DE_RUTA.md)** — léelo antes de tocar código. Aquí va
-solo el resumen:
-
-1. `reporte/` — el PDF ya salió (`pdf.py`); falta partir `build_dash_app`
-   (740 líneas) en layout, componentes y callbacks.
-2. `ingesta/` — `autenticar`, `ValidadorCalidadAire`, lectura de Sheets.
-3. `transformacion/` — tabla diaria, numeralia, episodios, alertas.
-4. Mover `run_full_pipeline` al paquete y quitar el puente de `cli.py`.
-5. Eliminar los años escritos a mano: quedan **199 literales** `2025`/`2026`
-   en la capa de reporte que deben salir de `Config.anio` y
-   `Config.anio_previo`.
-6. Implementar el cumplimiento **anual** de la NOM-172. Los límites están
-   capturados en `NOM_PRESETS["…"]["LIMITES_ANUALES"]` pero ningún cálculo
-   los usa: hoy solo se evalúa el cumplimiento diario.
+2. **Las dependencias van del CLI hacia adentro**, con una sola excepción a
+   propósito: `cli.py → main.py`, porque ahí viven `ValidadorCalidadAire` y
+   `run_full_pipeline`.
 
 ## La hoja `Acumuladas` (no la borres)
 

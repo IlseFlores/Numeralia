@@ -803,42 +803,57 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             // dcc.Graph carga plotly.js de forma diferida, y el estilo del
             // mapa base ('carto-positron') termina de cargar de forma
             // asíncrona AÚN DESPUÉS de que el nodo ya tiene '_fullLayout'.
-            // Llamar 'relayout' antes de tiempo truena de dos maneras:
-            //   · "Cannot read properties of undefined (reading '_guiEditing')"
-            //     — el nodo todavía no está inicializado.
-            //   · "Style is not done loading" — el nodo sí, pero el mapa base
-            //     no.
-            // Por eso: se espera a '_fullLayout', se le pasa el NODO (no el id;
-            // dcc.Graph pone el id en un contenedor externo y el nodo real es
-            // un hijo .js-plotly-plot), y si aun así 'relayout' rechaza, se
-            // reintenta. Además, al montar solo se toca el zoom si estamos en
-            // celular: en escritorio el mapa ya viene con ZOOM_ESCRITORIO
-            // desde Python (_fig_mapa), así que ahí 'relayout' sería un no-op
-            // que solo genera ruido en la consola.
+            // Llamar 'relayout' antes de tiempo truena de varias maneras
+            // ("Cannot read properties of undefined (reading '_guiEditing')",
+            // "Style is not done loading") y la última pasa DENTRO de una
+            // promesa interna de Plotly que nosotros no controlamos, así que
+            // ni el try/catch ni el .catch() de la promesa que devuelve
+            // relayout() la atrapan — sale como "Uncaught (in promise)" pase
+            // lo que pase del lado de acá.
+            //
+            // La única forma confiable de no pisarle el mandado es preguntarle
+            // al mapa mismo (MapLibre GL, que es quien dibuja 'map'/'scattermap')
+            // si ya terminó de cargar su estilo, con isStyleLoaded(). Mientras
+            // no lo confirme, no se llama a relayout.
             let intentos = 0;
             function nodoMapa() {
                 const cont = document.getElementById('mapa-grafico');
                 if (!cont) { return null; }
                 return cont._fullLayout ? cont : cont.querySelector('.js-plotly-plot');
             }
-            function ajustar() {
-                const zoom = esCelular() ? ZOOM_CELULAR : ZOOM_ESCRITORIO;
+            function mapaListo() {
                 const gd = nodoMapa();
-                if (typeof Plotly === 'undefined' || !gd || !gd._fullLayout) {
-                    if (intentos++ < 40) { setTimeout(ajustar, 150); }
-                    return;
+                if (!gd || !gd._fullLayout || !gd._fullLayout.map) { return null; }
+                const subplot = gd._fullLayout.map._subplot;
+                const mapaInterno = subplot && subplot.map;
+                if (!mapaInterno || typeof mapaInterno.isStyleLoaded !== 'function') {
+                    return null;
                 }
-                let p;
                 try {
-                    p = Plotly.relayout(gd, {'map.zoom': zoom});
+                    return mapaInterno.isStyleLoaded() ? gd : null;
                 } catch (e) {
-                    if (intentos++ < 40) { setTimeout(ajustar, 200); }
+                    return null;
+                }
+            }
+            function ajustar() {
+                if (typeof Plotly === 'undefined') {
+                    if (intentos++ < 60) { setTimeout(ajustar, 150); }
                     return;
                 }
-                if (p && typeof p.catch === 'function') {
-                    p.catch(function () {
-                        if (intentos++ < 40) { setTimeout(ajustar, 200); }
-                    });
+                const gd = mapaListo();
+                if (!gd) {
+                    if (intentos++ < 60) { setTimeout(ajustar, 150); }
+                    return;
+                }
+                const zoom = esCelular() ? ZOOM_CELULAR : ZOOM_ESCRITORIO;
+                try {
+                    Plotly.relayout(gd, {'map.zoom': zoom});
+                } catch (e) {
+                    // El estilo pudo haberse invalidado justo entre el check
+                    // y la llamada (p. ej. la pestaña volvió de segundo plano).
+                    // No vale la pena insistir a fuerza: se deja el zoom como
+                    // esté y se reintenta en el próximo 'resize'.
+                    console.warn('mapaZoom: relayout fallo', e);
                 }
             }
 
