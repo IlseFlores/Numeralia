@@ -2068,14 +2068,14 @@ def _kpi_dato(etiqueta: str, valor, color_punto: str = None):
 
 def _periodo_corte() -> str:
     """
-    'Registro del 1 de enero al 8 de septiembre del 2026' — el rango que cubren
+    'Periodo del 1 de Enero al 8 de Septiembre del 2026' — el rango que cubren
     los datos. El corte es el día anterior, igual que _fecha_encabezado: el
     dashboard refleja datos cerrados al día previo.
     """
     utc_minus_6 = timezone(timedelta(hours=-6))
     ayer = datetime.now(utc_minus_6) - timedelta(days=1)
-    return (f"Registro del 1 de enero al {ayer.day} de "
-            f"{_MESES_NOMBRE[ayer.month].lower()} del {ayer.year}")
+    return (f"Periodo del 1 de Enero al {ayer.day} de "
+            f"{_MESES_NOMBRE[ayer.month]} del {ayer.year}")
 
 
 def _kpi_total(etiqueta: str, valor):
