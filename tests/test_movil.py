@@ -25,6 +25,9 @@ original = pytest.importorskip(
     reason="main.py no está disponible; el refactor ya terminó.",
 )
 
+from numeralia.reporte import datos_graficas, formato, tarjetas  # noqa: E402
+from numeralia.transformacion import alertas, episodios  # noqa: E402
+
 RAIZ = original.__file__
 import pathlib  # noqa: E402
 RUTA_RAIZ = pathlib.Path(RAIZ).resolve().parent
@@ -45,7 +48,7 @@ class TestContarEpisodios:
             ("PreContingencia Atmosférica", "PM10"),
             ("PreContingencia Atmosférica", "PM2.5"),
         ])
-        r = original._contar_episodios(df)
+        r = episodios._contar_episodios(df)
         assert r["Precontingencias atmosféricas:"] == 4
         assert r["   Precontingencias declaradas por Ozono"] == 2
         assert r["   Precontingencias declaradas por PM10"] == 1
@@ -56,7 +59,7 @@ class TestContarEpisodios:
             ("Contingencia Atmosférica Fase I", "O3"),
             ("Contingencia Atmosférica Fase I", "PM10"),
         ])
-        r = original._contar_episodios(df)
+        r = episodios._contar_episodios(df)
         assert r["Contingencias atmosféricas Fase I:"] == 2
         assert r["   Contingencias declaradas por Ozono"] == 1
         assert r["   Contingencias declaradas por PM10"] == 1
@@ -66,7 +69,7 @@ class TestContarEpisodios:
             ("Contingencia Atmosférica Fase II", "O3"),
             ("Contingencia Atmosférica Fase III", "PM10"),
         ])
-        r = original._contar_episodios(df)
+        r = episodios._contar_episodios(df)
         assert r["Contingencias atmosféricas Fase II:"] == 1
         assert r["Contingencias atmosféricas Fase III:"] == 1
 
@@ -76,18 +79,18 @@ class TestContarEpisodios:
             ("Contingencia Atmosférica Fase I", "PM10"),
             ("Contingencia Atmosférica Fase II", "PM2.5"),
         ])
-        assert original._contar_episodios(df)["Episodios Totales"] == 3
+        assert episodios._contar_episodios(df)["Episodios Totales"] == 3
 
     def test_ignora_espacios_y_mayusculas_no_afectan_el_contaminante(self):
         # El código hace .str.strip().str.replace(' ', ''); 'PM 10' debe
         # seguir contando como PM10.
         df = self._df([("PreContingencia Atmosférica", "PM 10")])
-        r = original._contar_episodios(df)
+        r = episodios._contar_episodios(df)
         assert r["   Precontingencias declaradas por PM10"] == 1
 
     def test_dataframe_vacio_da_todo_en_cero(self):
         df = pd.DataFrame(columns=["Evento", "Contaminante"])
-        r = original._contar_episodios(df)
+        r = episodios._contar_episodios(df)
         assert all(v == 0 for v in r.values())
 
 
@@ -96,19 +99,19 @@ class TestContarAlertas:
         return pd.DataFrame({"Fase Decretada": fases})
 
     def test_cuenta_alertas_y_emergencias_por_separado(self):
-        r = original._contar_alertas(self._df(["Alerta", "Alerta", "Emergencia"]))
+        r = alertas._contar_alertas(self._df(["Alerta", "Alerta", "Emergencia"]))
         assert r["Alertas:"] == 2
         assert r["Emergencias:"] == 1
         assert r["Total Alertas y Emergencias"] == 3
 
     def test_valores_desconocidos_no_cuentan_en_ninguna_categoria(self):
-        r = original._contar_alertas(self._df(["Alerta", "Otra cosa", ""]))
+        r = alertas._contar_alertas(self._df(["Alerta", "Otra cosa", ""]))
         assert r["Alertas:"] == 1
         assert r["Emergencias:"] == 0
         assert r["Total Alertas y Emergencias"] == 1
 
     def test_recorta_espacios_alrededor_del_valor(self):
-        r = original._contar_alertas(self._df(["  Alerta  ", " Emergencia "]))
+        r = alertas._contar_alertas(self._df(["  Alerta  ", " Emergencia "]))
         assert r["Alertas:"] == 1
         assert r["Emergencias:"] == 1
 
@@ -116,42 +119,42 @@ class TestContarAlertas:
 class TestBuscarColumna:
     def test_encuentra_por_fragmento_sin_acentos_ni_mayusculas(self):
         columnas = ["No", "Fase Decretada", "Municipio (Origen)", "Fecha Termino"]
-        assert original._buscar_columna(columnas, "termino", "fin") == "Fecha Termino"
+        assert formato._buscar_columna(columnas, "termino", "fin") == "Fecha Termino"
 
     def test_encuentra_con_acento_en_el_fragmento_buscado(self):
         columnas = ["Municipio (Origen)"]
-        assert original._buscar_columna(columnas, "municipio") == "Municipio (Origen)"
+        assert formato._buscar_columna(columnas, "municipio") == "Municipio (Origen)"
 
     def test_devuelve_none_si_no_hay_coincidencia(self):
-        assert original._buscar_columna(["A", "B"], "zzz") is None
+        assert formato._buscar_columna(["A", "B"], "zzz") is None
 
     def test_devuelve_la_primera_coincidencia_en_orden(self):
         columnas = ["Fecha inicio", "Fecha termino"]
-        assert original._buscar_columna(columnas, "fecha") == "Fecha inicio"
+        assert formato._buscar_columna(columnas, "fecha") == "Fecha inicio"
 
 
 class TestOrdenarPorNoDesc:
     def test_ordena_de_mayor_a_menor_por_la_primera_columna(self):
         df = pd.DataFrame({"No": ["1", "3", "2"], "valor": ["a", "b", "c"]})
-        resultado = original._ordenar_por_no_desc(df)
+        resultado = formato._ordenar_por_no_desc(df)
         assert list(resultado["No"]) == ["3", "2", "1"]
 
     def test_no_revuelve_las_demas_columnas(self):
         df = pd.DataFrame({"No": ["1", "2"], "valor": ["a", "b"]})
-        resultado = original._ordenar_por_no_desc(df)
+        resultado = formato._ordenar_por_no_desc(df)
         fila_2 = resultado[resultado["No"] == "2"].iloc[0]
         assert fila_2["valor"] == "b"
 
     def test_dataframe_vacio_no_truena(self):
         df = pd.DataFrame(columns=["No", "valor"])
-        resultado = original._ordenar_por_no_desc(df)
+        resultado = formato._ordenar_por_no_desc(df)
         assert resultado.empty
 
     def test_valores_no_numericos_van_al_final(self):
         # pd.to_numeric(errors='coerce') los vuelve NaN, y sort_values manda
         # los NaN al final incluso en orden descendente.
         df = pd.DataFrame({"No": ["2", "n/a", "5"], "valor": ["a", "b", "c"]})
-        resultado = original._ordenar_por_no_desc(df)
+        resultado = formato._ordenar_por_no_desc(df)
         assert list(resultado["No"]) == ["5", "2", "n/a"]
 
 
@@ -169,7 +172,7 @@ class TestEventosActivos2026:
 
     def test_un_evento_sin_fecha_de_termino_esta_activo(self):
         df = self._df([self._fila_base()])
-        activos = original._eventos_activos_2026(df)
+        activos = datos_graficas._eventos_activos_2026(df)
         assert len(activos) == 1
         assert activos[0]["municipio"] == "Guadalajara"
         assert activos[0]["incidente"] == "Incendio forestal"
@@ -178,31 +181,31 @@ class TestEventosActivos2026:
         fila = self._fila_base()
         fila["Fecha termino"] = "05-ene-2026"
         df = self._df([fila])
-        assert original._eventos_activos_2026(df) == []
+        assert datos_graficas._eventos_activos_2026(df) == []
 
     def test_una_fila_vacia_de_plantilla_no_cuenta(self):
         fila = self._fila_base()
         fila["Incidente"] = ""
         df = self._df([fila])
-        assert original._eventos_activos_2026(df) == []
+        assert datos_graficas._eventos_activos_2026(df) == []
 
     def test_sin_columna_de_termino_devuelve_lista_vacia(self):
         df = pd.DataFrame([{c: "x" for c in
                              ["No", "Fase", "Clasif", "Municipio", "Incidente", "Zonas", "c7", "Inicio"]}])
-        assert original._eventos_activos_2026(df) == []
+        assert datos_graficas._eventos_activos_2026(df) == []
 
     def test_menos_de_ocho_columnas_devuelve_lista_vacia(self):
         df = pd.DataFrame([{"No": "1", "Fase": "x"}])
-        assert original._eventos_activos_2026(df) == []
+        assert datos_graficas._eventos_activos_2026(df) == []
 
     def test_retorna_tipo_alerta(self):
         df = pd.DataFrame([self._fila_base()])
-        activos = original._eventos_activos_2026(df)
+        activos = datos_graficas._eventos_activos_2026(df)
         assert activos[0]["tipo"] == "alerta"
 
     def test_retorna_fase_decretada(self):
         df = pd.DataFrame([self._fila_base()])
-        activos = original._eventos_activos_2026(df)
+        activos = datos_graficas._eventos_activos_2026(df)
         assert activos[0]["fase"] == "Emergencia"
 
 
@@ -222,7 +225,7 @@ class TestEpisodiosActivosRaw:
 
     def test_episodio_con_estado_activo_aparece(self):
         df = self._df([self._fila_base()])
-        activos = original._episodios_activos_raw(df)
+        activos = datos_graficas._episodios_activos_raw(df)
         assert len(activos) == 1
         assert activos[0]["tipo"] == "episodio"
         assert activos[0]["municipio"] == "Miravalle"
@@ -231,7 +234,7 @@ class TestEpisodiosActivosRaw:
         fila = self._fila_base()
         fila["Estado"] = "Concluida"
         df = self._df([fila])
-        assert original._episodios_activos_raw(df) == []
+        assert datos_graficas._episodios_activos_raw(df) == []
 
     def test_episodio_sin_columna_estado_usa_fin_vacio(self):
         fila = {
@@ -240,7 +243,7 @@ class TestEpisodiosActivosRaw:
             "Inicio": "01-ene-2026", "Fin": "",
         }
         df = self._df([fila])
-        activos = original._episodios_activos_raw(df)
+        activos = datos_graficas._episodios_activos_raw(df)
         assert len(activos) == 1
 
     def test_episodio_sin_columna_estado_con_fin_lleno_no_cuenta(self):
@@ -250,17 +253,17 @@ class TestEpisodiosActivosRaw:
             "Inicio": "01-ene-2026", "Fin": "03-ene-2026",
         }
         df = self._df([fila])
-        assert original._episodios_activos_raw(df) == []
+        assert datos_graficas._episodios_activos_raw(df) == []
 
     def test_fila_con_no_vacio_no_cuenta(self):
         fila = self._fila_base()
         fila["No"] = ""
         df = self._df([fila])
-        assert original._episodios_activos_raw(df) == []
+        assert datos_graficas._episodios_activos_raw(df) == []
 
     def test_sin_columna_fin_ni_estado_devuelve_vacio(self):
         df = pd.DataFrame([{"No": "1", "Inicio": "x", "Evento": "y"}])
-        assert original._episodios_activos_raw(df) == []
+        assert datos_graficas._episodios_activos_raw(df) == []
 
     def test_columnas_intermedias_vacias_no_bloquean_deteccion(self):
         # En la hoja real puede haber columnas como Latitud/Longitud vacías
@@ -268,19 +271,19 @@ class TestEpisodiosActivosRaw:
         fila["Latitud"] = ""   # columna intermedia vacía
         fila["Longitud"] = ""  # columna intermedia vacía
         df = self._df([fila])
-        activos = original._episodios_activos_raw(df)
+        activos = datos_graficas._episodios_activos_raw(df)
         assert len(activos) == 1
 
     def test_severidad_precontingencia(self):
         df = self._df([self._fila_base()])
-        activos = original._episodios_activos_raw(df)
+        activos = datos_graficas._episodios_activos_raw(df)
         assert activos[0]["severidad"] == 1
 
     def test_severidad_contingencia_fase_ii(self):
         fila = self._fila_base()
         fila["Evento"] = "Contingencia Atmosférica Fase II"
         df = self._df([fila])
-        activos = original._episodios_activos_raw(df)
+        activos = datos_graficas._episodios_activos_raw(df)
         assert activos[0]["severidad"] == 3
 
 
@@ -309,7 +312,7 @@ class TestComparativoEpisodios:
             "Contaminante": ["O3"],
         })
 
-        comparativo = original.calcular_comparativo_episodios(df_2025, df_2026)
+        comparativo = episodios.calcular_comparativo_episodios(df_2025, df_2026)
         col_2025 = comparativo.columns[0]
         col_2026 = comparativo.columns[1]
 
@@ -329,7 +332,7 @@ class TestComparativoEpisodios:
             "Inicio": [pd.NaT],
             "Evento": ["PreContingencia Atmosférica"], "Contaminante": ["O3"],
         })
-        comparativo = original.calcular_comparativo_episodios(df_2025, df_2026)
+        comparativo = episodios.calcular_comparativo_episodios(df_2025, df_2026)
         col_2026 = comparativo.columns[1]
         assert comparativo.loc["Precontingencias atmosféricas:", col_2026] == 1
 
@@ -344,22 +347,22 @@ class TestToggleBitacoras:
     """
 
     def test_clic_en_alertas_abre_solo_alertas(self):
-        resultado = original._siguiente_clases_bitacoras(
+        resultado = formato._siguiente_clases_bitacoras(
             "bitacora-alertas-header", "bitacora-cerrada", "bitacora-cerrada")
         assert resultado == ("bitacora-abierta", "bitacora-cerrada")
 
     def test_clic_en_alertas_abierta_la_vuelve_a_cerrar(self):
-        resultado = original._siguiente_clases_bitacoras(
+        resultado = formato._siguiente_clases_bitacoras(
             "bitacora-alertas-header", "bitacora-abierta", "bitacora-cerrada")
         assert resultado == ("bitacora-cerrada", "bitacora-cerrada")
 
     def test_clic_en_episodios_no_toca_el_estado_de_alertas(self):
-        resultado = original._siguiente_clases_bitacoras(
+        resultado = formato._siguiente_clases_bitacoras(
             "bitacora-episodios-header", "bitacora-abierta", "bitacora-cerrada")
         assert resultado == ("bitacora-abierta", "bitacora-abierta")
 
     def test_disparador_desconocido_no_cambia_nada(self):
-        resultado = original._siguiente_clases_bitacoras(
+        resultado = formato._siguiente_clases_bitacoras(
             None, "bitacora-cerrada", "bitacora-abierta")
         assert resultado == ("bitacora-cerrada", "bitacora-abierta")
 
@@ -395,7 +398,7 @@ class TestCardBitacoraAlertas:
             "col7": ["z", "w"], "Inicio": ["01-ene-2026", "02-ene-2026"],
             "Fecha termino": ["", ""],
         })
-        card, _df = original._card_bitacora_alertas(df)
+        card, _df = tarjetas._card_bitacora_alertas(df)
         return card
 
     def test_el_wrapper_empieza_cerrado(self, tarjeta):
@@ -441,7 +444,7 @@ class TestCardBitacoraEpisodios:
             "col4": ["x"], "col5": ["x"], "col6": ["x"],
             "Estado": ["Terminado"], "Fin": ["01-ene-2026"],
         })
-        card, _df = original._card_bitacora_episodios(df)
+        card, _df = tarjetas._card_bitacora_episodios(df)
         return card
 
     def test_el_wrapper_empieza_cerrado(self, tarjeta):
@@ -459,7 +462,7 @@ class TestCardBitacoraEpisodios:
 class TestEncabezadoLogos:
     @pytest.fixture
     def encabezado(self):
-        return original._encabezado_reporte()
+        return tarjetas._encabezado_reporte()
 
     def _imagenes(self, componente):
         from dash import html
@@ -574,7 +577,8 @@ class TestCssTablet:
 # ── Frontend: JS embebido en index_string ───────────────────────────────────
 
 def _extraer_index_string() -> str:
-    fuente = pathlib.Path(original.__file__).read_text(encoding="utf-8")
+    from numeralia.reporte import app as _app
+    fuente = pathlib.Path(_app.__file__).read_text(encoding="utf-8")
     inicio = fuente.index("app.index_string = '''")
     inicio = fuente.index("'''", inicio) + 3
     fin = fuente.index("'''", inicio)
@@ -605,15 +609,18 @@ class TestIndexString:
 
 class TestFuenteMainPy:
     """
-    Este gancho vive en los ``clientside_callback`` (fuera del
-    ``index_string``), pero es igual de crítico para que el PDF fuerce el
-    ancho de escritorio en celular: si alguien lo borra por accidente, el
+    Estos ganchos viven en los ``clientside_callback``, que ahora son archivos
+    de verdad en ``assets/dashboard.js`` (antes eran cadenas de JS dentro de
+    ``build_dash_app``). Siguen siendo críticos para que el PDF fuerce el
+    ancho de escritorio en celular: si alguien los borra por accidente, el
     test avisa.
     """
 
     @pytest.fixture(scope="module")
     def fuente(self):
-        return pathlib.Path(original.__file__).read_text(encoding="utf-8")
+        py = pathlib.Path(original.__file__).read_text(encoding="utf-8")
+        js = (RUTA_RAIZ / "assets" / "dashboard.js").read_text(encoding="utf-8")
+        return py + "\n" + js
 
     def test_conserva_la_clase_que_fuerza_el_ancho_de_escritorio_en_pdf(self, fuente):
         assert "capturando-pdf" in fuente
