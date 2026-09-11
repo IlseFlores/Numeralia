@@ -83,6 +83,16 @@ def _fecha_encabezado() -> str:
     return f"{ayer.day} DE {_MESES_NOMBRE[ayer.month].upper()} DEL {ayer.year}"
 
 
+def _fecha_archivo() -> str:
+    """
+    Fecha de ayer como '10.09.26', para nombres de archivo descargables.
+    Mismo criterio de corte que _fecha_encabezado: el día anterior.
+    """
+    utc_minus_6 = timezone(timedelta(hours=-6))
+    ayer = datetime.now(utc_minus_6) - timedelta(days=1)
+    return f"{ayer.day:02d}.{ayer.month:02d}.{ayer.year % 100:02d}"
+
+
 def _fecha_mes_abreviado(valor) -> str:
     """
     Convierte '01/02/2026' en '01/Feb/2026'.

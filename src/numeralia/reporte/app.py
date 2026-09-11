@@ -36,7 +36,9 @@ from numeralia.reporte.datos_graficas import (
     _eventos_activos_2026,
 )
 from numeralia.reporte.figuras import _fig_a_base64, _fig_mapa, _fig_serie_buena_mensual
-from numeralia.reporte.formato import _fecha_encabezado, _siguiente_clases_bitacoras
+from numeralia.reporte.formato import (
+    _fecha_archivo, _fecha_encabezado, _siguiente_clases_bitacoras,
+)
 from numeralia.reporte.kpis import _kpi_activaciones_simaj, _kpi_alertas_emergencias
 from numeralia.reporte.pdf import DescargaPDF, registrar_descargas
 from numeralia.reporte.tablas import (
@@ -644,7 +646,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             df=df_bitacora_alertas,
             titulo='Alertas y Emergencias Atmosféricas 2026',
             subtitulo='Eventos extraordinarios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.\nCORTE AL ' + _fecha_encabezado(),
-            archivo='Alertas_y_Emergencias_2026.pdf',
+            archivo=f'Alertas_y_Emergencias_{_fecha_archivo()}.pdf',
             boton_id='btn-pdf-alertas',
             descarga_id='descarga-pdf-alertas',
             logo_izq=_ruta_logo_simaj,
@@ -654,7 +656,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
             df=df_bitacora_episodios,
             titulo='Episodios de Mala calidad del aire',
             subtitulo='Episodios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.\nCORTE AL ' + _fecha_encabezado(),
-            archivo='Episodios.pdf',
+            archivo=f'Episodios_{_fecha_archivo()}.pdf',
             boton_id='btn-pdf-episodios',
             descarga_id='descarga-pdf-episodios',
             logo_izq=_ruta_logo_simaj,

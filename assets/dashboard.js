@@ -1237,8 +1237,15 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
                 if (!pdf) { throw new Error('No hay páginas que exportar.'); }
 
-                const hoy = new Date().toISOString().slice(0, 10);
-                pdf.save('Reporte_Calidad_del_Aire_' + hoy + '.pdf');
+                // Fecha de AYER en hora de Jalisco (UTC-6 fijo, sin horario de
+                // verano), igual que el resto del dashboard: los datos que se
+                // ven son los cerrados al día anterior, no los de hoy.
+                const menos6 = new Date(Date.now() - 6 * 60 * 60 * 1000);
+                menos6.setUTCDate(menos6.getUTCDate() - 1);
+                const dd = String(menos6.getUTCDate()).padStart(2, '0');
+                const mm = String(menos6.getUTCMonth() + 1).padStart(2, '0');
+                const yy = String(menos6.getUTCFullYear()).slice(-2);
+                pdf.save(`${dd}.${mm}.${yy}_Reporte Diario CA.pdf`);
             } catch (e) {
                 console.error('Error al generar el PDF', e);
                 alert('No se pudo generar el PDF. Revisa la consola.');
