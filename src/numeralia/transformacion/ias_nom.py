@@ -505,3 +505,13 @@ def actualizar_acumulado(spreadsheet, anio_actual: Optional[int] = None,
 
     print(f"OK: Acumulado actualizado en '{hoja_analitica}' para el año {anio}.")
     return acumulado
+
+
+def fecha_acumulada(spreadsheet, anio: int, fecha) -> bool:
+    """
+    True si ese día del año `anio` ya quedó sumado en 'Analitica' (aparece en
+    la hoja de control 'Acumuladas'). La usa el sensor del reporte diario por
+    correo para saber cuándo ya terminó la actualización de la mañana, en vez
+    de mandarlo a una hora fija del reloj.
+    """
+    return pd.to_datetime(fecha).date() in _fechas_ya_acumuladas(spreadsheet, anio)

@@ -1,104 +1,3 @@
-# ============================================================================
-# PIPELINE COMPLETO — Calidad del Aire SEMADET
-# Numeralia (Cruda -> Procesada -> Analítica) + Episodios + IMECA Máximo +
-# Alertas + Dashboard (Dash), todo en una sola corrida.
-#
-# CÓMO USARLO EN COLAB
-# ---------------------------------------------------------------------------
-# 1) En la PRIMERAAAA celda de tu notebook (una sola vez por sesión), instala
-#    las dependencias que no vienen por defecto en Colab:
-#
-#       %pip install gspread-dataframe dash fpdf2 kaleido -q
-#
-#    (fpdf2 se usa para los PDF de las dos bitacoras. kaleido genera la foto
-#     fija del mapa que va en el PDF del dashboard: sin el, todo funciona
-#     igual pero el mapa sale vacio en el PDF. El resto del PDF lo arma el
-#     navegador con html2canvas + jsPDF, que se cargan por CDN.)
-#
-# 1.b) LOGOS DEL ENCABEZADO: viven en una carpeta 'logos' dentro de tu Google
-#    Drive, en la raiz de "Mi unidad":
-#
-#       MyDrive/logos/logo simaj (1).png            -> esquina superior izquierda
-#       MyDrive/logos/SemadetGobJal_transp (1).png  -> esquina superior derecha
-#
-#    El codigo NO monta Drive solo (para no interrumpir pidiendo permisos),
-#    asi que si es una sesion nueva corre esto antes en una celda aparte:
-#
-#       from google.colab import drive
-#       drive.mount('/content/drive')
-#
-#    Si falta algun logo, el dashboard se levanta igual, solo sin ese logo, y
-#    la consola imprime la ruta exacta donde lo busco.
-#
-# 2) Pega este archivo completo en la SIGUIENTE celda y ejecútala (esto solo
-#    define funciones, no corre nada todavía).
-#
-# 3) En una tercera celda, dispara todo con una sola línea:
-#
-#       acumulado = run_full_pipeline()
-#
-#    Esto: valida Cruda, calcula IAS/NOM, escribe Procesada, acumula en
-#    Analítica, recalcula Episodios + IMECA Máximo + Alertas, y al final
-#    levanta el dashboard del mapa con los datos ya frescos.
-#
-#    Si solo quieres correr el pipeline de datos sin abrir el dashboard:
-#
-#       acumulado = run_full_pipeline(lanzar_dashboard=False)
-#
-# ============================================================================
-# CÓMO USARLO COMO ARCHIVO .py (fuera de Colab)
-# ---------------------------------------------------------------------------
-# El mismo archivo sirve en los dos lados; lo único que cambia es cómo se
-# autentica con Google. En Colab hay una persona que autoriza en una ventana;
-# en un .py no la hay, así que se usa una CUENTA DE SERVICIO: un usuario
-# "robot" que tiene sus propias llaves en un archivo JSON.
-#
-# 1) Dependencias:
-#
-#       pip install gspread gspread-dataframe google-auth pandas numpy \
-#                   openpyxl dash plotly fpdf2 kaleido python-dotenv
-#
-# 2) Crear la cuenta de servicio (una sola vez):
-#      a. Entra a https://console.cloud.google.com/ y crea un proyecto.
-#      b. Activa "Google Sheets API" y "Google Drive API".
-#      c. IAM y administración -> Cuentas de servicio -> Crear.
-#      d. En la cuenta creada: pestaña CLAVES -> Agregar clave -> JSON.
-#
-# 2.b) Pasar las llaves al .env (recomendado):
-#      Copia .env.example como .env y vacía ahí los campos del JSON. Después
-#      BORRA el archivo .json descargado: su contenido ya vive en el .env,
-#      que está protegido por .gitignore.
-#
-#      Ojo con GOOGLE_PRIVATE_KEY: va entre comillas, en una sola línea, y
-#      conservando los \n literales tal como vienen en el JSON.
-#
-#      Si prefieres seguir con el archivo, también funciona: renómbralo a
-#      credenciales.json y ponlo junto a este .py. El código intenta primero
-#      el .env y si no encuentra nada, busca el archivo.
-#
-# 3) Darle acceso a las hojas (esto es lo que más se olvida):
-#      Abre credenciales.json, copia el valor de "client_email" (algo como
-#      robot@proyecto.iam.gserviceaccount.com) y comparte con ese correo las
-#      cuatro hojas de cálculo que usa el pipeline:
-#         · Hoja destino  -> permiso EDITOR (aquí escribe)
-#         · Fuente 2025   -> Lector
-#         · Fuente 2026   -> Lector
-#         · Resumen MENSUAL -> Lector
-#      Sin esto, el pipeline falla con un error 403 de permisos.
-#
-# 4) Logos: crea una carpeta 'logos' junto al .py con los dos PNG dentro.
-#
-# 5) Correr:
-#
-#       python main.py          # usa el año actual
-#       python main.py 2026     # fuerza un año
-#
-#    El dashboard queda en http://127.0.0.1:8050
-#
-#    Nota: corriendo como .py el año NO se pregunta por consola, se toma del
-#    sistema o del argumento. Así el pipeline puede correr desatendido, por
-#    ejemplo desde una tarea programada.
-# ============================================================================
 
 import os
 import re
@@ -117,18 +16,6 @@ warnings.filterwarnings('ignore')
 # SECCIÓN 0: AUTENTICACIÓN Y UTILIDADES DE ENTORNO
 # ============================================================================
 
-# ── Configuración y secretos ────────────────────────────────────────────────
-#
-# Nada sensible vive dentro de este archivo: las llaves de la cuenta de
-# servicio y las URLs de las hojas se leen de variables de entorno, que a su
-# vez se cargan de un archivo .env que NO se sube al repositorio. Así el
-# código se puede versionar y compartir sin exponer credenciales.
-#
-# Ver .env.example para la plantilla.
-
-# La carga del .env, el armado de las credenciales y la busqueda del archivo
-# JSON viven ahora en numeralia.config, que es el unico lugar que lee el
-# entorno. Aqui solo se reexportan los nombres que el resto del archivo usa.
 from numeralia.config import (                                    # noqa: E402
     CAMPOS_CUENTA_SERVICIO as _CAMPOS_CUENTA_SERVICIO,
     cargar_dotenv as _cargar_dotenv,
@@ -136,9 +23,6 @@ from numeralia.config import (                                    # noqa: E402
     ruta_credenciales as _ruta_credenciales,
 )
 
-# Antes que nada, la salida en UTF-8: este módulo imprime emojis en sus
-# mensajes de avance y la consola de Windows es cp1252. Va aquí, y no solo en
-# el CLI, para que también funcione al importarlo desde una sesión de Python.
 from numeralia.consola import forzar_utf8                          # noqa: E402
 
 forzar_utf8()
@@ -553,9 +437,6 @@ class ValidadorCalidadAire:
 # SECCIÓN 2: FUNCIONES DE CÁLCULO IAS / NOM
 # ============================================================================
 
-# Toda esta seccion vive ahora en numeralia.dominio (calculo puro) y en
-# numeralia.reporte.tema (colores). Se reexporta para no romper el resto del
-# archivo mientras se migra la capa de presentacion.
 from numeralia.dominio.nowcast import (                           # noqa: E402
     NowCast,
     rolling_8h,
@@ -613,9 +494,7 @@ from numeralia.dominio.nom172 import frac_rango as _frac_rango     # noqa: E402
 # SECCIÓN 6: DASHBOARD (Dash)
 # ============================================================================
 #
-# Todo el dashboard vive ahora en numeralia.reporte (formato, figuras,
-# datos_graficas, kpis, tablas, tarjetas y app) y en assets/dashboard.js.
-# run_full_pipeline solo necesita estas tres piezas del ensamblado:
+
 
 from numeralia.transformacion.alertas import run_alertas         # noqa: E402
 from numeralia.transformacion.episodios import run_episodios     # noqa: E402
@@ -636,14 +515,6 @@ from numeralia.reporte.formato import _buscar_columna, _sin_acentos  # noqa: E40
 # SECCIÓN 7: ORQUESTADOR PRINCIPAL — un solo punto de entrada
 # ============================================================================
 
-# Las URLs se leen del .env. Los valores de aquí son solo el respaldo para
-# que el archivo siga corriendo tal cual en Colab; en un repositorio
-# conviene dejarlos vacíos y definir todo en el .env.
-#
-# Hoja destino: contiene Cruda, Procesada, Analitica, Episodios, IMECA MAXIMO, ALERTAS
-# Las URLs se resuelven en numeralia.config a partir del .env. Los valores
-# de respaldo se conservan para que el archivo siga corriendo tal cual en
-# Colab, donde no hay .env.
 from numeralia.config import Config                                # noqa: E402
 
 CONFIG = Config.desde_env()

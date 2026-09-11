@@ -1,6 +1,8 @@
 # Secretos / configuración local
 .env
 credenciales.json
+client_secret_gmail.json
+token_gmail.json
 
 # Entorno virtual
 venv/

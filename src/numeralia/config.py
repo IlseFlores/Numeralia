@@ -131,6 +131,13 @@ class Config:
     # horas y el resumen mensual, de días.
     refresco_eventos_seg: int = 300
     refresco_mensual_seg: int = 1800
+    # Reporte diario por correo (ver numeralia.notificaciones): URL del
+    # dashboard EN PRODUCCIÓN (de ahí se descargan los 3 PDF), a quién se
+    # manda, desde qué cuenta y dónde queda también una copia local.
+    url_dashboard_reporte: str = ''
+    destinatarios_reporte: tuple = ()
+    remitente_reporte: str = ''
+    carpeta_descargas: str = ''
 
     @property
     def anio_previo(self) -> int:
@@ -185,6 +192,16 @@ class Config:
             anio_criterio_nom=int(os.getenv('NUMERALIA_CRITERIO_NOM', '2026')),
             refresco_eventos_seg=int(os.getenv('NUMERALIA_REFRESCO_EVENTOS', '300')),
             refresco_mensual_seg=int(os.getenv('NUMERALIA_REFRESCO_MENSUAL', '1800')),
+            url_dashboard_reporte=os.getenv('REPORTE_URL_DASHBOARD', ''),
+            destinatarios_reporte=tuple(
+                correo.strip()
+                for correo in os.getenv('REPORTE_DESTINATARIOS', '').split(',')
+                if correo.strip()
+            ),
+            remitente_reporte=os.getenv('REPORTE_REMITENTE', ''),
+            carpeta_descargas=os.getenv(
+                'REPORTE_CARPETA_DESCARGAS', str(Path.home() / 'Downloads')
+            ),
         )
 
     def faltantes(self) -> list:
