@@ -21,7 +21,7 @@ from pypdf import PdfWriter
 
 log = logging.getLogger(__name__)
 
-_TIEMPO_CARGA_MS = 60_000
+_TIEMPO_CARGA_MS = 120_000
 _TIEMPO_DESCARGA_MS = 60_000
 # Tras 'networkidle' el mapa y las gráficas (Plotly/ECharts) todavía tardan
 # en terminar de pintarse; sin esta espera el primer botón a veces
@@ -54,7 +54,13 @@ def descargar_pdfs_dashboard(url: str, carpeta_destino: Path) -> list[Path]:
         contexto = navegador.new_context(ignore_https_errors=True)
         pagina = contexto.new_page()
         try:
-            pagina.goto(url, wait_until='networkidle', timeout=_TIEMPO_CARGA_MS)
+            # 'networkidle' no es buena señal aquí: si el servidor va lento
+            # (o el dashboard sigue con alguna llamada de fondo), la red
+            # nunca se queda callada y el timeout revienta aunque la página
+            # ya esté lista de verdad. Mejor esperar a que exista el primer
+            # botón de descarga, que es justo lo que hace falta para seguir.
+            pagina.goto(url, wait_until='domcontentloaded', timeout=_TIEMPO_CARGA_MS)
+            pagina.wait_for_selector(f'#{_BOTONES_EN_ORDEN[0]}', timeout=_TIEMPO_CARGA_MS)
             pagina.wait_for_timeout(_ESPERA_RENDER_MS)
 
             for boton_id in _BOTONES_EN_ORDEN:

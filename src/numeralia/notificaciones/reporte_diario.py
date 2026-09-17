@@ -4,16 +4,18 @@ Arma y manda el reporte diario de calidad del aire.
 Descarga los 3 PDF del dashboard en producción, los fusiona en uno solo, deja
 una copia en Descargas y lo manda por correo. Es lo que dispara el DAG de
 Airflow todos los días; también se puede correr a mano para probar:
-
-    python -m numeralia.notificaciones.reporte_diario
+python -m numeralia.notificaciones.reporte_diario
+    
 """
 
 from __future__ import annotations
 
 import logging
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+
+import gspread
 
 from numeralia.config import Config, cargar_dotenv
 from numeralia.ingesta.auth import autenticar
@@ -22,6 +24,34 @@ from numeralia.notificaciones.gmail import enviar_correo
 from numeralia.transformacion.ias_nom import fecha_acumulada
 
 log = logging.getLogger(__name__)
+
+# El DAG en el servidor y una corrida a mano en otra máquina no comparten
+# disco, así que un archivo local no serviría para saber "ya se mandó hoy".
+# Se registra en la misma hoja de cálculo que ya comparten ambos (por eso
+# vive ahí y no en un archivo): quien mande primero deja la marca, y el que
+# llegue después la ve y no reenvía.
+HOJA_CONTROL_ENVIOS = "ReporteDiarioEnviado"
+
+
+def _hoja_control_envios(spreadsheet):
+    try:
+        return spreadsheet.worksheet(HOJA_CONTROL_ENVIOS)
+    except gspread.WorksheetNotFound:
+        ws = spreadsheet.add_worksheet(title=HOJA_CONTROL_ENVIOS, rows=400, cols=2)
+        ws.update(range_name="A1", values=[["Fecha de corte", "Enviado"]])
+        return ws
+
+
+def _ya_enviado(spreadsheet, fecha_corte: date) -> bool:
+    filas = _hoja_control_envios(spreadsheet).get_all_records()
+    objetivo = fecha_corte.strftime('%Y-%m-%d')
+    return any(str(f.get("Fecha de corte")) == objetivo for f in filas)
+
+
+def _marcar_enviado(spreadsheet, fecha_corte: date) -> None:
+    sello = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    _hoja_control_envios(spreadsheet).append_row(
+        [fecha_corte.strftime('%Y-%m-%d'), sello])
 
 _MESES = {
     1: 'enero', 2: 'febrero', 3: 'marzo', 4: 'abril', 5: 'mayo', 6: 'junio',
@@ -87,11 +117,23 @@ def generar_reporte_diario(config: Config, carpeta_temporal: Path) -> Path:
     return fusionar_pdfs(rutas, destino)
 
 
-def enviar_reporte_diario(config: Config, ruta_token_gmail: Path) -> Path:
-    """Genera el PDF combinado y lo manda por correo. Devuelve la ruta del PDF."""
+def enviar_reporte_diario(config: Config, ruta_token_gmail: Path) -> Path | None:
+    """
+    Genera el PDF combinado y lo manda por correo. Devuelve la ruta del PDF,
+    o None si el reporte de esa fecha de corte ya se había mandado antes (el
+    DAG en el servidor y una corrida a mano el mismo día no se pisan).
+    """
+    fecha_corte = _fecha_corte()
+    gc = autenticar()
+    spreadsheet = gc.open_by_url(config.url_destino)
+
+    if _ya_enviado(spreadsheet, fecha_corte.date()):
+        log.info("El reporte del %s ya se había enviado antes; no se manda "
+                 "de nuevo.", fecha_corte.date())
+        return None
+
     with tempfile.TemporaryDirectory(prefix='reporte_ca_') as carpeta_temporal:
         ruta_pdf = generar_reporte_diario(config, Path(carpeta_temporal))
-        fecha_corte = _fecha_corte()
 
         enviar_correo(
             remitente=config.remitente_reporte,
@@ -102,6 +144,11 @@ def enviar_reporte_diario(config: Config, ruta_token_gmail: Path) -> Path:
             adjuntos=[ruta_pdf],
             ruta_token=ruta_token_gmail,
         )
+
+    # Se marca DESPUÉS de mandarlo: si algo truena antes, la fecha no queda
+    # marcada y el siguiente intento sí reenvía, en vez de darlo por bueno
+    # sin estarlo (mismo criterio que _registrar_fechas_acumuladas).
+    _marcar_enviado(spreadsheet, fecha_corte.date())
     return ruta_pdf
 
 
@@ -111,4 +158,7 @@ if __name__ == '__main__':
     _config = Config.desde_env()
     _raiz = Path(__file__).resolve().parents[3]
     _ruta = enviar_reporte_diario(_config, _raiz / 'token_gmail.json')
-    print(f"Reporte enviado. Copia guardada en: {_ruta}")
+    if _ruta is None:
+        print("No se mandó nada: el reporte de hoy ya se había enviado antes.")
+    else:
+        print(f"Reporte enviado. Copia guardada en: {_ruta}")
