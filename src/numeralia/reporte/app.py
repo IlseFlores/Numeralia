@@ -666,9 +666,7 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
     # ── Gráficas de episodios con ECharts ─────────────────────────────────
     #
-    # ECharts se carga por CDN (ver index_string) y se dibuja desde el
-    # navegador, no desde Python. El renderer va en 'svg' a propósito: el de
-    # canvas, que es el predeterminado, no se captura bien al generar el PDF.
+    
     app.clientside_callback(
         ClientsideFunction(namespace='dashboard', function_name='barrasEpisodios'),
         Output('echarts-dibujado', 'data'),
