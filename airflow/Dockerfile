@@ -41,5 +41,15 @@ USER root
 RUN python -m playwright install --with-deps chromium
 USER airflow
 
+# COPY corre igual sin importar el USER activo, pero /opt/numeralia (creada
+# por WORKDIR más arriba) se queda siendo de root aunque los ARCHIVOS
+# copiados aquí sí sean de airflow. setuptools necesita crear build/ y
+# *.egg-info DENTRO de esa carpeta al instalar el paquete; sin este chown,
+# 'airflow' no tiene permiso de escribir ahí y el build truena con
+# "Permission denied".
+USER root
 COPY --chown=airflow:root . .
+RUN chown -R airflow:root /opt/numeralia
+
+USER airflow
 RUN pip install --no-cache-dir --no-deps --no-build-isolation .
