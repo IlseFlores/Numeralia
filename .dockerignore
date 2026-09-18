@@ -6,6 +6,8 @@
 !.env.example
 credenciales.json
 **/credenciales.json
+client_secret_gmail.json
+token_gmail.json
 venv
 .venv
 env

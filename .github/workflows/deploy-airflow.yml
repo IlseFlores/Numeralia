@@ -1,0 +1,125 @@
+name: deploy-airflow
+
+# Igual que 'deploy' (el del dashboard), pero para el Airflow del reporte
+# diario: misma conexión SSH al mismo droplet, carpeta aparte para no
+# interferir con el dashboard que ya vive ahí.
+#
+# No corre en cada push: solo cuando cambia algo que de verdad afecta a
+# Airflow, o a mano desde la pestaña Actions.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'airflow/**'
+      - 'dags/**'
+      - 'src/numeralia/notificaciones/**'
+      - 'src/numeralia/transformacion/ias_nom.py'
+      - 'src/numeralia/config.py'
+      - 'src/numeralia/ingesta/**'
+      - 'requirements.txt'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-airflow
+  cancel-in-progress: false
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    env:
+      BASE: ${{ vars.AIRFLOW_IMAGE || 'ghcr.io/ilseflores/numeralia-airflow' }}
+    outputs:
+      ref: ${{ steps.name.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: name
+        run: echo "ref=$(printf '%s' "$BASE" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - name: Sesión contra el registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: airflow/Dockerfile
+          push: true
+          tags: ${{ steps.name.outputs.ref }}:latest
+
+  deploy:
+    needs: image
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_REF: ${{ needs.image.outputs.ref }}
+      SSH_HOST: ${{ vars.DROPLET_HOST }}
+      SSH_USER: ${{ vars.DROPLET_USER }}
+      # Carpeta PROPIA para Airflow, hermana de la del dashboard (DROPLET_PATH)
+      # pero no la misma: así 'docker compose' de uno no confunde servicios
+      # del otro aunque compartan servidor.
+      REMOTE_PATH: ${{ vars.DROPLET_AIRFLOW_PATH || '/opt/numeralia-airflow' }}
+      SSH_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      SSH_HOST_KEY: ${{ vars.DROPLET_SSH_HOST_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar acceso SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$SSH_HOST_KEY" >> ~/.ssh/known_hosts
+
+      - name: Sincronizar docker-compose.yml y los DAGs
+        # La carpeta remota refleja la misma forma que el repo (airflow/ y
+        # dags/ como hermanos), porque las rutas relativas DENTRO de
+        # airflow/docker-compose.yml (../dags, ../.env...) dan por hecho esa
+        # forma. .env y token_gmail.json NO se tocan aquí: se suben a mano
+        # una sola vez, igual que ya pasa con el .env del dashboard.
+        run: |
+          ssh -o BatchMode=yes -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" \
+            "mkdir -p $REMOTE_PATH/airflow $REMOTE_PATH/dags"
+          scp -i ~/.ssh/id_deploy airflow/docker-compose.yml \
+            "$SSH_USER@$SSH_HOST:$REMOTE_PATH/airflow/docker-compose.yml"
+          scp -i ~/.ssh/id_deploy dags/*.py \
+            "$SSH_USER@$SSH_HOST:$REMOTE_PATH/dags/"
+
+      - name: Publicar la nueva versión
+        run: |
+          ssh -o BatchMode=yes -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" bash -s \
+            "$IMAGE_REF" "$REMOTE_PATH" <<'EOF'
+          set -euo pipefail
+          imagen="$1"; ruta="$2"
+          cd "$ruta/airflow"
+          if [ ! -f ../.env ] || [ ! -f ../token_gmail.json ]; then
+            echo "Falta $ruta/.env o $ruta/token_gmail.json en el servidor." >&2
+            echo "Ese paso es manual, una sola vez (ver README)." >&2
+            exit 1
+          fi
+          AIRFLOW_IMAGE="${imagen%:*}" AIRFLOW_IMAGE_TAG="${imagen##*:}" docker compose pull
+          AIRFLOW_IMAGE="${imagen%:*}" AIRFLOW_IMAGE_TAG="${imagen##*:}" docker compose up -d
+          EOF
+
+      - name: Confirmar que Airflow levanta
+        timeout-minutes: 10
+        run: |
+          ssh -o BatchMode=yes -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" bash -s \
+            "$REMOTE_PATH" <<'EOF'
+          set -euo pipefail
+          cd "$1/airflow"
+          for _ in $(seq 1 30); do
+            cid=$(docker compose ps -q airflow-webserver | head -1)
+            estado=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}sin-healthcheck{{end}}' "$cid" 2>/dev/null || echo ausente)
+            echo "estado del healthcheck: $estado"
+            [ "$estado" = healthy ] && exit 0
+            [ "$estado" = unhealthy ] && exit 1
+            sleep 10
+          done
+          exit 1
+          EOF
