@@ -103,11 +103,7 @@ def _encabezado_reporte():
     """
     Encabezado del reporte: logo SIMAJ a la izquierda, título centrado con la
     fecha debajo, logo SEMADET/Gobierno de Jalisco a la derecha, y al final
-    la introducción.
-
-    Los tres bloques de la fila usan flex con el mismo ancho base, así el
-    título queda centrado respecto a la página aunque los logos tengan
-    anchos distintos.
+    la introducción del reporte.
     """
     src_simaj = _logo_src(LOGO_SIMAJ)
     src_semadet = _logo_src(LOGO_SEMADET)

@@ -1,5 +1,5 @@
 """
-Configuración central del proyecto.
+Conf centr del proyecto.
 
 Este módulo es el ÚNICO lugar donde se lee el entorno. Antes las llamadas a
 ``os.getenv`` estaban repartidas por el archivo (credenciales cerca del
