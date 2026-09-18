@@ -1,28 +1,30 @@
 # Dependencias para la imagen de Airflow — separadas de requirements.txt.
 #
-# pandas y numpy van en versiones MÁS VIEJAS que las del dashboard a propósito:
-# el Dockerfile instala esto junto con --constraint apuntando a las
-# constraints oficiales de Airflow 2.10.5/Python 3.12, y esas constraints
-# fijan pandas/numpy en versiones muy anteriores a pandas==3.0.5/numpy==2.5.2
-# (las que usa requirements.txt). Pedirle a pip esas dos cosas a la vez
-# —el pin nuevo Y la constraint vieja— es un conflicto sin salida; de ahí
-# salió el build roto. El resto de las versiones se deja igual que en
-# requirements.txt porque esas no chocan con las constraints de Airflow.
+# El Dockerfile instala esto junto con --constraint apuntando a las
+# constraints oficiales de Airflow 2.10.5/Python 3.12. Varios paquetes que
+# también usa Airflow por dentro tienen que coincidir EXACTO con lo que esa
+# constraint fija, o pip no encuentra cómo resolverlo (así se rompió el
+# build: pandas/numpy/python-dotenv/google-auth-oauthlib/
+# google-api-python-client iban en versiones más nuevas que las del
+# dashboard, y esas versiones no cumplían la constraint). El resto de los
+# paquetes (gspread, dash, plotly, fpdf2, kaleido, playwright, pypdf...) no
+# aparecen en el archivo de Airflow, así que se dejan igual que en
+# requirements.txt.
 #
-# Si necesitas actualizar una versión aquí, revisa primero que siga
-# cumpliendo esa constraint:
+# Si necesitas actualizar una versión de las que sí están fijadas por
+# Airflow, revisa primero cuál exige la constraint:
 #   https://raw.githubusercontent.com/apache/airflow/constraints-2.10.5/constraints-3.12.txt
 gspread==6.2.1
 gspread-dataframe==4.0.0
-pandas==2.2.3
+pandas==2.1.4
 numpy==1.26.4
 openpyxl==3.1.5
 dash==4.4.1
 plotly==7.0.0
 fpdf2==2.8.8
 kaleido==1.3.0
-python-dotenv==1.2.3
+python-dotenv==1.0.1
 playwright==1.55.0
 pypdf==6.1.3
-google-auth-oauthlib==1.2.2
-google-api-python-client==2.187.0
+google-auth-oauthlib==1.2.1
+google-api-python-client==2.160.0
