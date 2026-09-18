@@ -136,6 +136,7 @@ class Config:
     # manda, desde qué cuenta y dónde queda también una copia local.
     url_dashboard_reporte: str = ''
     destinatarios_reporte: tuple = ()
+    copia_reporte: tuple = ()
     remitente_reporte: str = ''
     carpeta_descargas: str = ''
 
@@ -196,6 +197,11 @@ class Config:
             destinatarios_reporte=tuple(
                 correo.strip()
                 for correo in os.getenv('REPORTE_DESTINATARIOS', '').split(',')
+                if correo.strip()
+            ),
+            copia_reporte=tuple(
+                correo.strip()
+                for correo in os.getenv('REPORTE_CC', '').split(',')
                 if correo.strip()
             ),
             remitente_reporte=os.getenv('REPORTE_REMITENTE', ''),

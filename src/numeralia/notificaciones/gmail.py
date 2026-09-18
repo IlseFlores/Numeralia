@@ -44,9 +44,12 @@ def _credenciales(ruta_token: Path) -> Credentials:
 
 
 def _armar_mensaje(remitente: str, destinatarios: Sequence[str], asunto: str,
-                   cuerpo: str, adjuntos: Sequence[Path]) -> dict:
+                   cuerpo: str, adjuntos: Sequence[Path],
+                   copia: Sequence[str] = ()) -> dict:
     mensaje = EmailMessage()
     mensaje['To'] = ', '.join(destinatarios)
+    if copia:
+        mensaje['Cc'] = ', '.join(copia)
     mensaje['From'] = remitente
     mensaje['Subject'] = asunto
     mensaje.set_content(cuerpo)
@@ -62,11 +65,12 @@ def _armar_mensaje(remitente: str, destinatarios: Sequence[str], asunto: str,
 
 
 def enviar_correo(remitente: str, destinatarios: Sequence[str], asunto: str,
-                  cuerpo: str, adjuntos: Sequence[Path], ruta_token: Path) -> str:
+                  cuerpo: str, adjuntos: Sequence[Path], ruta_token: Path,
+                  copia: Sequence[str] = ()) -> str:
     """Envía el correo y devuelve el id que Gmail le asigna al mensaje."""
     credenciales = _credenciales(ruta_token)
     servicio = build('gmail', 'v1', credentials=credenciales)
-    mensaje = _armar_mensaje(remitente, destinatarios, asunto, cuerpo, adjuntos)
+    mensaje = _armar_mensaje(remitente, destinatarios, asunto, cuerpo, adjuntos, copia)
     try:
         enviado = servicio.users().messages().send(userId='me', body=mensaje).execute()
     except HttpError as e:

@@ -143,6 +143,7 @@ def enviar_reporte_diario(config: Config, ruta_token_gmail: Path) -> Path | None
             cuerpo=_cuerpo_correo(fecha_corte),
             adjuntos=[ruta_pdf],
             ruta_token=ruta_token_gmail,
+            copia=config.copia_reporte,
         )
 
     # Se marca DESPUÉS de mandarlo: si algo truena antes, la fecha no queda
