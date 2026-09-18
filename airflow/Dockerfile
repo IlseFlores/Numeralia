@@ -3,6 +3,11 @@
 #
 # El contexto de build es la RAÍZ del repo (ver airflow/docker-compose.yml:
 # `context: ..`), así que este Dockerfile ve requirements.txt, src/, etc.
+#
+# OJO: usa airflow/requirements.txt, NO el requirements.txt de la raíz. Ese
+# trae pandas/numpy en versiones más nuevas de lo que soportan las
+# constraints de Airflow (ver el comentario en airflow/requirements.txt);
+# usarlo aquí tumba el build con un conflicto de dependencias.
 
 FROM apache/airflow:2.10.5-python3.12
 
@@ -19,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/numeralia
-COPY --chown=airflow:root requirements.txt ./
+COPY --chown=airflow:root airflow/requirements.txt ./requirements.txt
 
 USER airflow
 # --constraint: Airflow fija versiones de varias librerías que también usa
