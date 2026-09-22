@@ -258,7 +258,7 @@ def _card_eventos_activos(eventos_alertas, eventos_episodios=None):
 
     if not todos:
         cuerpo = html.Div(
-            'Sin episodios ni eventos activos al momento.',
+            'Sin eventos ni episodios activos al momento.',
             style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'textAlign': 'center',
                    'padding': '18px 0'},
         )
@@ -315,7 +315,7 @@ def _card_eventos_activos(eventos_alertas, eventos_episodios=None):
         cuerpo = html.Div(fichas)
 
     return html.Div([
-        html.Div('Episodios o Eventos Activos', style=_KPI_TITULO),
+        html.Div('Eventos o Episodios Activos', style=_KPI_TITULO),
         html.Div(cuerpo, style={**_KPI_CUERPO, 'display': 'flex',
                                  'flexDirection': 'column', 'justifyContent': 'center'}),
     ], style=_KPI_CONTENEDOR)
