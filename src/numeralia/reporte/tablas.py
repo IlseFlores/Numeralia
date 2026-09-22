@@ -180,7 +180,10 @@ def _tabla_episodios(df: pd.DataFrame):
     if fila_totales is not None:
         base_tot = {**_KPI_PIE, 'color': '#173d4c'}
         tbodies.append(html.Tbody([html.Tr([
-            html.Td(str(fila_totales[col_label]).strip(), style=_lbl(base_tot)),
+            # Etiqueta fija, no el valor crudo de la hoja ('Episodios
+            # Totales'): esta tabla ya se muestra como "Eventos" en el resto
+            # de sus rótulos.
+            html.Td('Eventos Totales', style=_lbl(base_tot)),
             html.Td(fila_totales[col_2025], style={**_num(base_tot), 'fontWeight': '800'}),
             html.Td(fila_totales[col_2026], style={**_num(base_tot), 'fontWeight': '800'}),
         ])]))
