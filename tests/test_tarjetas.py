@@ -55,7 +55,7 @@ class TestCardImeca:
 class TestCardEventosActivos:
     def test_sin_eventos_muestra_el_vacio(self):
         t = _texto(tarjetas._card_eventos_activos([], []))
-        assert "Sin episodios ni eventos activos" in t
+        assert "Sin eventos ni episodios activos" in t
 
     def test_lista_alertas_y_episodios_juntos(self):
         alertas = [{"tipo": "alerta", "fase": "Emergencia", "incidente": "Incendio",
