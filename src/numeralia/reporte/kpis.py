@@ -167,7 +167,7 @@ def _kpi_activaciones_simaj(df_episodios: pd.DataFrame, col_2026: str):
         # El encabezado de la ficha ES el total (antes iba el título
         # 'Episodios Activados'): _kpi_total lo pinta en el aqua de 2026 sobre
         # el recuadro azul bajito.
-        _kpi_total('Episodios Totales', total),
+        _kpi_total('Eventos Totales', total),
         html.Div(html.Div([
             html.Div(_kpi_dato('Precontingencias', precont, _SEVERIDAD_TINTES[1]),
                      style={'flex': '1', 'minWidth': '0'}),
@@ -205,7 +205,7 @@ def _kpi_alertas_emergencias(df_alertas: pd.DataFrame, col_2026: str):
 
     return html.Div([
         # El encabezado ES el total (antes: título 'Eventos activados').
-        _kpi_total('Eventos Totales', total),
+        _kpi_total('Episodios Totales', total),
         html.Div(html.Div([
             html.Div(_kpi_dato('Alertas', alertas, '#FFB300'),
                      style={'flex': '1', 'minWidth': '0'}),

@@ -282,7 +282,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                             const valor = (p.data && p.data.rawValue != null)
                                 ? p.data.rawValue : p.value;
                             let html = '<b>' + p.seriesName + '</b><br/>' +
-                                       p.name + ': ' + valor + ' episodios';
+                                       p.name + ': ' + valor + ' eventos';
 
                             // Tercera línea: cómo se compara ESTE contaminante
                             // contra el año previo. Solo se muestra en la barra
@@ -304,7 +304,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                                 if (!base) {
                                     // Sin base no hay porcentaje: dividir entre 0
                                     // daría Infinity y "∞% menos" no dice nada.
-                                    comp = 'sin episodios en ' + anioPrevio;
+                                    comp = 'sin eventos en ' + anioPrevio;
                                 } else if (valor === base) {
                                     comp = 'igual que en ' + anioPrevio;
                                 } else {
@@ -484,7 +484,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                             const nombre = p.seriesIndex === 0 ? 'Alertas' : 'Emergencias';
                             const valor  = p.value || 0;
                             let html = '<b>' + nombre + '</b><br/>' +
-                                       anio + ': ' + valor + ' eventos';
+                                       anio + ': ' + valor + ' episodios';
                             const base = previo[p.seriesIndex] || 0;
                             let comp;
                             if (!base) {

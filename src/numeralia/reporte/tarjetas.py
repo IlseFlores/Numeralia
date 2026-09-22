@@ -279,7 +279,7 @@ def _card_eventos_activos(eventos_alertas, eventos_episodios=None):
             else:
                 sev = ev.get('severidad', 0)
                 color_badge = _SEVERIDAD_TINTES.get(sev, '#FFB300')
-                texto_badge = ev.get('evento') or 'Episodio activo'
+                texto_badge = ev.get('evento') or 'Evento activo'
                 texto_claro_badge = sev >= 2
                 descripcion = None
                 detalle = f"en el municipio de {ev['municipio']}" if ev.get('municipio') else ''
@@ -333,7 +333,7 @@ def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
     return html.Div([
         html.Div([
             html.Div([
-                'Registro de Eventos (Alertas y Emergencias) ',
+                'Registro de Episodios (Alertas y Emergencias) ',
                 html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
             ], id='bitacora-alertas-header',
                      className='bitacora-titulo',
@@ -343,7 +343,7 @@ def _card_bitacora_alertas(df_alertas_2026_raw: pd.DataFrame):
             _icono_descarga('btn-pdf-alertas'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
                   'marginBottom': '4px'}),
-        html.Div('Eventos extraordinarios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.',
+        html.Div('Episodios extraordinarios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
             html.Div(
@@ -391,7 +391,7 @@ def _card_bitacora_episodios(df_episodios_2026_raw: pd.DataFrame):
     return html.Div([
         html.Div([
             html.Div([
-                'Registro de Episodios (Precontingencias y Contingencias) ',
+                'Registro de Eventos (Precontingencias y Contingencias) ',
                 html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
             ], id='bitacora-episodios-header',
                      className='bitacora-titulo',
@@ -401,7 +401,7 @@ def _card_bitacora_episodios(df_episodios_2026_raw: pd.DataFrame):
             _icono_descarga('btn-pdf-episodios'),
         ], style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
                   'marginBottom': '4px'}),
-        html.Div('Episodios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.',
+        html.Div('Eventos decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
             html.Div(
