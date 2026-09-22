@@ -237,12 +237,12 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
 
     episodios_card = html.Div([
         html.Div([
-            'Comparativo de Episodios de mala calidad del Aire ',
+            'Comparativo de Eventos de mala calidad del Aire ',
             html.Span('2025', style={'color': COLOR_2025, 'fontWeight': '800'}),
             '-',
             html.Span('2026', style={'color': COLOR_2026, 'fontWeight': '800'}),
         ], style={'color': '#111C51', 'fontWeight': '700', 'fontSize': '18px', 'marginBottom': '4px'}),
-        html.Div('Episodios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.',
+        html.Div('Eventos decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.',
                   style={'color': COLOR_GRIS_MUTE, 'fontSize': '15px', 'marginBottom': '14px'}),
         html.Div([
             html.Div([_tabla_episodios(df_episodios)],
@@ -645,8 +645,8 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         DescargaPDF(
             df=df_bitacora_alertas,
             titulo='Alertas y Emergencias Atmosféricas 2026',
-            subtitulo='Eventos extraordinarios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.\nCORTE AL ' + _fecha_encabezado(),
-            archivo=f'{_fecha_archivo()}_Eventos.pdf',
+            subtitulo='Episodios extraordinarios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.\nCORTE AL ' + _fecha_encabezado(),
+            archivo=f'{_fecha_archivo()}_Episodios.pdf',
             boton_id='btn-pdf-alertas',
             descarga_id='descarga-pdf-alertas',
             logo_izq=_ruta_logo_simaj,
@@ -654,9 +654,9 @@ def build_dash_app(gc=None, spreadsheet_destino=None, acumulado: pd.DataFrame = 
         ),
         DescargaPDF(
             df=df_bitacora_episodios,
-            titulo='Episodios de Mala calidad del aire',
-            subtitulo='Episodios decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.\nCORTE AL ' + _fecha_encabezado(),
-            archivo=f'{_fecha_archivo()}_Episodios.pdf',
+            titulo='Eventos de Mala calidad del aire',
+            subtitulo='Eventos decretados de acuerdo con el Plan de Respuesta a Emergencias y Contingencias Atmosféricas (PRECA) del Estado de Jalisco.\nCORTE AL ' + _fecha_encabezado(),
+            archivo=f'{_fecha_archivo()}_Eventos.pdf',
             boton_id='btn-pdf-episodios',
             descarga_id='descarga-pdf-episodios',
             logo_izq=_ruta_logo_simaj,

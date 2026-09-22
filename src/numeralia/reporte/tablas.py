@@ -186,7 +186,7 @@ def _tabla_episodios(df: pd.DataFrame):
         ])]))
 
     encabezado = html.Thead(html.Tr([
-        html.Th('Episodios activados', style={'backgroundColor': '#e8edef', 'color': '#173d4c',
+        html.Th('Eventos activados', style={'backgroundColor': '#e8edef', 'color': '#173d4c',
                                                'padding': '10px 14px', 'textAlign': 'left'}),
         html.Th('2025', style={'backgroundColor': COLOR_2025, 'color': '#fff', 'padding': '10px 14px'}),
         html.Th('2026', style={'backgroundColor': COLOR_2026, 'color': '#fff', 'padding': '10px 14px'}),
