@@ -57,7 +57,12 @@ jobs:
     needs: image
     runs-on: ubuntu-latest
     env:
-      IMAGE_REF: ${{ needs.image.outputs.ref }}
+      # needs.image.outputs.ref es solo el nombre (sin tag) — el build le
+      # puso ':latest' al subirla (ver tags: en el job 'image'), así que
+      # aquí hay que pegárselo también. Sin esto, el script de abajo
+      # intenta separar "nombre:tag" de un string sin ':' y los dos lados
+      # terminan siendo el nombre completo repetido.
+      IMAGE_REF: ${{ needs.image.outputs.ref }}:latest
       SSH_HOST: ${{ vars.DROPLET_HOST }}
       SSH_USER: ${{ vars.DROPLET_USER }}
       # Carpeta PROPIA para Airflow, hermana de la del dashboard (DROPLET_PATH)
