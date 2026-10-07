@@ -16,6 +16,8 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import gspread
+import requests
+import urllib3
 
 from numeralia.config import Config, cargar_dotenv
 from numeralia.ingesta.auth import autenticar
@@ -24,6 +26,11 @@ from numeralia.notificaciones.gmail import enviar_correo
 from numeralia.transformacion.ias_nom import fecha_acumulada
 
 log = logging.getLogger(__name__)
+
+# El dominio de prueba corre en un puerto no estándar (8443) con un
+# certificado que no encaja con el host; igual que ignore_https_errors en
+# dashboard_pdf.py, se ignora para esta sola revisión de texto.
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # El DAG en el servidor y una corrida a mano en otra máquina no comparten
 # disco, así que un archivo local no serviría para saber "ya se mandó hoy".
@@ -49,7 +56,11 @@ def _ya_enviado(spreadsheet, fecha_corte: date) -> bool:
 
 
 def _marcar_enviado(spreadsheet, fecha_corte: date) -> None:
-    sello = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    # datetime.now() a secas toma la hora del sistema donde corre el proceso
+    # (en el servidor, UTC) — con eso la columna "Enviado" quedaba 6 horas
+    # adelantada de la hora real de Jalisco. Mismo huso que _fecha_corte().
+    utc_menos_6 = timezone(timedelta(hours=-6))
+    sello = datetime.now(utc_menos_6).strftime('%Y-%m-%d %H:%M:%S')
     _hoja_control_envios(spreadsheet).append_row(
         [fecha_corte.strftime('%Y-%m-%d'), sello])
 
@@ -106,8 +117,42 @@ def datos_listos_para_enviar(config: Config) -> bool:
 
     gc = autenticar()
     spreadsheet = gc.open_by_url(config.url_destino)
-    return (fecha_acumulada(spreadsheet, fecha_corte.year, fecha_corte)
-            and fecha_acumulada(spreadsheet, anio_previo, fecha_corte_previa))
+    if not (fecha_acumulada(spreadsheet, fecha_corte.year, fecha_corte)
+            and fecha_acumulada(spreadsheet, anio_previo, fecha_corte_previa)):
+        return False
+
+    # 'Acumuladas' se actualiza AL PRINCIPIO del pipeline de la mañana; el
+    # dashboard en vivo (el que descarga_pdfs_dashboard va a fotografiar)
+    # recién se refresca hasta que ese pipeline termina del todo y el
+    # proceso se reinicia con los datos nuevos. Sin esta segunda revisión,
+    # el sensor daba luz verde en esa ventana intermedia y el reporte salía
+    # con los datos del día anterior aunque 'Acumuladas' ya dijera "listo".
+    fecha_texto = (f"{fecha_corte.day} DE {_MESES[fecha_corte.month].upper()} "
+                   f"DEL {fecha_corte.year}")
+    return _dashboard_muestra_fecha(config.url_dashboard_reporte, fecha_texto)
+
+
+def _dashboard_muestra_fecha(url: str, fecha_texto: str) -> bool:
+    """
+    True si el dashboard ya contiene la fecha de corte esperada, p.ej.
+    '6 DE OCTUBRE DEL 2026'. Confirma que el PROCESO del dashboard ya se
+    reinició con los datos de hoy.
+
+    Dash no manda el layout ya armado en el HTML inicial —lo arma el
+    navegador con JS a partir de un JSON que pide aparte—, así que la
+    página normal no sirve para esto sin un navegador de por medio. El
+    endpoint interno '_dash-layout' sí trae ese JSON directo del servidor,
+    así que una petición HTTP simple basta, sin Playwright.
+    """
+    url_layout = url.rstrip('/') + '/_dash-layout'
+    try:
+        respuesta = requests.get(url_layout, timeout=20, verify=False)
+        respuesta.raise_for_status()
+    except requests.RequestException as e:
+        log.info("No se pudo revisar la fecha del dashboard (%s); se "
+                 "reintenta en el siguiente poke.", e)
+        return False
+    return fecha_texto in respuesta.text
 
 
 def generar_reporte_diario(config: Config, carpeta_temporal: Path) -> Path:
@@ -120,8 +165,17 @@ def generar_reporte_diario(config: Config, carpeta_temporal: Path) -> Path:
 def enviar_reporte_diario(config: Config, ruta_token_gmail: Path) -> Path | None:
     """
     Genera el PDF combinado y lo manda por correo. Devuelve la ruta del PDF,
-    o None si el reporte de esa fecha de corte ya se había mandado antes (el
-    DAG en el servidor y una corrida a mano el mismo día no se pisan).
+    o None si no se mandó nada — ya sea porque ese reporte ya se había
+    enviado antes (el DAG en el servidor y una corrida a mano el mismo día
+    no se pisan), o porque los datos de hoy todavía no están listos.
+
+    Esta misma revisión de "¿ya está listo?" la usa el sensor del DAG antes
+    de llegar aquí, pero se repite aquí para que correrlo A MANO (por
+    ejemplo python -m numeralia.notificaciones.reporte_diario) tenga la
+    misma protección: sin esto, correrlo temprano —antes de que el
+    dashboard termine de actualizarse— mandaría el reporte con los datos
+    del día anterior, el mismo bug que ya pasó una vez con el envío
+    automático.
     """
     fecha_corte = _fecha_corte()
     gc = autenticar()
@@ -130,6 +184,12 @@ def enviar_reporte_diario(config: Config, ruta_token_gmail: Path) -> Path | None
     if _ya_enviado(spreadsheet, fecha_corte.date()):
         log.info("El reporte del %s ya se había enviado antes; no se manda "
                  "de nuevo.", fecha_corte.date())
+        return None
+
+    if not datos_listos_para_enviar(config):
+        log.info("Los datos del %s todavía no están listos (o el dashboard "
+                 "no se ha actualizado); no se manda nada por ahora. "
+                 "Vuelve a intentarlo más tarde.", fecha_corte.date())
         return None
 
     with tempfile.TemporaryDirectory(prefix='reporte_ca_') as carpeta_temporal:
@@ -160,6 +220,7 @@ if __name__ == '__main__':
     _raiz = Path(__file__).resolve().parents[3]
     _ruta = enviar_reporte_diario(_config, _raiz / 'token_gmail.json')
     if _ruta is None:
-        print("No se mandó nada: el reporte de hoy ya se había enviado antes.")
+        print("No se mandó nada — revisa el mensaje de arriba para saber por qué "
+              "(ya se había enviado, o los datos todavía no están listos).")
     else:
         print(f"Reporte enviado. Copia guardada en: {_ruta}")

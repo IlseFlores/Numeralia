@@ -10,6 +10,14 @@ sensor no vuelve a pasar una vez que ya avanzó.
 
 Ver numeralia.notificaciones.reporte_diario para la lógica real; este
 archivo solo la cuelga de un calendario.
+
+PAUSADO A PROPÓSITO (schedule=None) desde el 7 de octubre de 2026: un correo
+automático salió con los datos del día anterior en vez del actual (ver
+numeralia.notificaciones.reporte_diario — ya se corrigió la causa, pero se
+decidió no reactivar el disparo automático hasta tener un servidor propio,
+sin depender de terceros para vigilarlo de cerca). Mientras tanto, el DAG
+sigue existiendo y se puede correr A MANO desde la interfaz de Airflow
+(botón "Trigger DAG") para probar.
 """
 
 from __future__ import annotations
@@ -50,9 +58,10 @@ with DAG(
     dag_id='reporte_diario_calidad_aire',
     description=('Espera a que termine la actualización de la mañana y '
                  'manda el reporte diario por correo.'),
-    # Hora en que empieza a REVISAR si ya está lista la data; no es la hora
-    # en que se manda el correo, esa depende del sensor.
-    schedule='0 6 * * *',
+    # None = no se dispara solo; queda disponible para correrlo a mano
+    # desde la interfaz mientras tanto. Antes: '0 6 * * *' (hora en que
+    # empezaba a REVISAR si ya estaba lista la data, no la hora de envío).
+    schedule=None,
     start_date=datetime(2026, 9, 1),
     catchup=False,
     max_active_runs=1,
