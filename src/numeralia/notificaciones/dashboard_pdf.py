@@ -51,7 +51,18 @@ def descargar_pdfs_dashboard(url: str, carpeta_destino: Path) -> list[Path]:
         # ignore_https_errors: el dominio de prueba corre en un puerto no
         # estándar (8443); si el certificado no encaja con el host, que no
         # tumbe la descarga por eso.
-        contexto = navegador.new_context(ignore_https_errors=True)
+        #
+        # viewport ancho a propósito: sin esto, Playwright usa 1280x720 por
+        # default, que es MENOS ancho de lo que da una pantalla de
+        # escritorio normal. La tarjeta "Comparativo de Alertas y
+        # Emergencias" necesita un poco más de 1050px para que la tabla y
+        # las barras queden lado a lado (la de Episodios, muy similar,
+        # alcanza a caber con apenas 1010px); a 1280px el margen es tan
+        # angosto que esa tarjeta se apila en vez de quedar en dos columnas.
+        contexto = navegador.new_context(
+            ignore_https_errors=True,
+            viewport={'width': 1600, 'height': 1000},
+        )
         pagina = contexto.new_page()
         try:
             # 'networkidle' no es buena señal aquí: si el servidor va lento
