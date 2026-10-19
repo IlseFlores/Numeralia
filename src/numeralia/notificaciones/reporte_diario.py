@@ -21,6 +21,7 @@ import urllib3
 
 from numeralia.config import Config, cargar_dotenv
 from numeralia.ingesta.auth import autenticar
+from numeralia.notificaciones import drive as _drive
 from numeralia.notificaciones.dashboard_pdf import descargar_pdfs_dashboard, fusionar_pdfs
 from numeralia.notificaciones.gmail import enviar_correo
 from numeralia.transformacion.ias_nom import fecha_acumulada
@@ -210,6 +211,17 @@ def enviar_reporte_diario(config: Config, ruta_token_gmail: Path) -> Path | None
     # marcada y el siguiente intento sí reenvía, en vez de darlo por bueno
     # sin estarlo (mismo criterio que _registrar_fechas_acumuladas).
     _marcar_enviado(spreadsheet, fecha_corte.date())
+
+    if config.drive_carpeta_id:
+        # Un tropiezo subiendo a Drive (permiso no compartido, cuota...) no
+        # debe tirar todo lo de arriba: el correo ya salió, que es lo que
+        # de verdad importa. Se deja constancia en el log y ya.
+        try:
+            _drive.subir_reporte(ruta_pdf, config.drive_carpeta_id,
+                                 fecha_corte.date(), ruta_token_gmail)
+        except Exception as e:
+            log.warning("No se pudo subir el reporte a Drive: %s", e)
+
     return ruta_pdf
 
 

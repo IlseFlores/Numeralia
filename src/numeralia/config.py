@@ -139,6 +139,10 @@ class Config:
     copia_reporte: tuple = ()
     remitente_reporte: str = ''
     carpeta_descargas: str = ''
+    # ID de la carpeta raíz de Drive donde se guarda también una copia del
+    # reporte, organizada por carpetas de mes ('10 Octubre', '11
+    # Noviembre'...). Vacío = no se sube nada a Drive.
+    drive_carpeta_id: str = ''
 
     @property
     def anio_previo(self) -> int:
@@ -208,6 +212,7 @@ class Config:
             carpeta_descargas=os.getenv(
                 'REPORTE_CARPETA_DESCARGAS', str(Path.home() / 'Downloads')
             ),
+            drive_carpeta_id=os.getenv('REPORTE_DRIVE_CARPETA_ID', ''),
         )
 
     def faltantes(self) -> list:
