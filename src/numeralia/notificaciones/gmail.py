@@ -22,10 +22,9 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-log = logging.getLogger(__name__)
+from numeralia.notificaciones._oauth import ALCANCES
 
-# Alcance mínimo: solo mandar correo, no leer ni administrar la cuenta.
-ALCANCE_ENVIO = ['https://www.googleapis.com/auth/gmail.send']
+log = logging.getLogger(__name__)
 
 
 def _credenciales(ruta_token: Path) -> Credentials:
@@ -34,7 +33,7 @@ def _credenciales(ruta_token: Path) -> Credentials:
             f"No existe {ruta_token}. Corre scripts/autorizar_gmail.py una "
             "vez para generarlo."
         )
-    credenciales = Credentials.from_authorized_user_file(str(ruta_token), ALCANCE_ENVIO)
+    credenciales = Credentials.from_authorized_user_file(str(ruta_token), ALCANCES)
     if credenciales.expired and credenciales.refresh_token:
         credenciales.refresh(Request())
         # El refresh token no cambia, pero el access token sí: se guarda de

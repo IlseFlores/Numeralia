@@ -23,9 +23,9 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
-log = logging.getLogger(__name__)
+from numeralia.notificaciones._oauth import ALCANCES
 
-ALCANCE_DRIVE = ['https://www.googleapis.com/auth/drive']
+log = logging.getLogger(__name__)
 
 _MESES = {
     1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril', 5: 'Mayo', 6: 'Junio',
@@ -44,7 +44,7 @@ def _credenciales(ruta_token: Path) -> Credentials:
         raise FileNotFoundError(
             f"No existe {ruta_token}. Corre scripts/autorizar_gmail.py."
         )
-    credenciales = Credentials.from_authorized_user_file(str(ruta_token), ALCANCE_DRIVE)
+    credenciales = Credentials.from_authorized_user_file(str(ruta_token), ALCANCES)
     if credenciales.expired and credenciales.refresh_token:
         credenciales.refresh(Request())
         ruta_token.write_text(credenciales.to_json())

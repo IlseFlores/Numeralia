@@ -29,10 +29,8 @@ from pathlib import Path
 
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-ALCANCES = [
-    'https://www.googleapis.com/auth/gmail.send',
-    'https://www.googleapis.com/auth/drive',
-]
+from numeralia.notificaciones._oauth import ALCANCES
+
 RAIZ = Path(__file__).resolve().parents[1]
 
 
