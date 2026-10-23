@@ -20,7 +20,7 @@ dependencies = [
     "kaleido==1.5.0",
     "python-dotenv==1.2.4",
     "playwright==1.64.1",
-    "pypdf==6.21.2",
+    "pypdf==6.21.1",
     "google-auth-oauthlib==1.5.0",
     "google-api-python-client==2.201.0",
     "requests==2.34.2",
