@@ -200,10 +200,31 @@ class ValidadorCalidadAire:
                         if parametro_base in columnas_bd:
                             valor = fila[col]
                             if pd.notna(valor) and str(valor).strip() != '':
+                                texto = str(valor).strip()
                                 try:
-                                    fila_base[parametro_base] = float(valor)
+                                    fila_base[parametro_base] = float(texto)
                                 except (ValueError, TypeError):
-                                    fila_base[parametro_base] = str(valor).strip()
+                                    # ENVISTA a veces pega la bandera de
+                                    # calidad al número en la MISMA celda
+                                    # ('0.008_Ok', '61_Of'...) en vez de
+                                    # mandarla aparte. Sin esto, float()
+                                    # truena con el texto completo y la
+                                    # lectura se guarda como texto crudo:
+                                    # aplicar_banderas()/validar_rangos()
+                                    # nunca la ven como número y el día
+                                    # se cuenta como "sin dato" aunque sí
+                                    # hubiera lectura. Se separa por el
+                                    # primer '_' y se reintenta solo con
+                                    # la parte numérica; si no hay número
+                                    # pegado (p.ej. 'NoData', sin nada al
+                                    # lado), se deja el texto tal cual,
+                                    # que es lo que esos dos pasos ya
+                                    # saben convertir en 'sin dato'.
+                                    numero, _, _bandera = texto.partition('_')
+                                    try:
+                                        fila_base[parametro_base] = float(numero)
+                                    except (ValueError, TypeError):
+                                        fila_base[parametro_base] = texto
 
                 datos_convertidos.append(fila_base)
 
