@@ -1,0 +1,41 @@
+name: limpiar-servidor
+
+# Libera espacio en el droplet borrando imágenes y contenedores de Docker
+# SIN USAR (nunca toca lo que esté corriendo). Solo a mano, desde Actions —
+# nunca se dispara solo. Usa la misma llave SSH que ya usan 'deploy' y
+# 'deploy-airflow', así que no hace falta ningún secreto nuevo.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  limpiar:
+    runs-on: ubuntu-latest
+    env:
+      SSH_HOST: ${{ vars.DROPLET_HOST }}
+      SSH_USER: ${{ vars.DROPLET_USER }}
+      SSH_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      SSH_HOST_KEY: ${{ vars.DROPLET_SSH_HOST_KEY }}
+    steps:
+      - name: Preparar acceso SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$SSH_HOST_KEY" >> ~/.ssh/known_hosts
+
+      - name: Espacio en disco ANTES
+        run: |
+          ssh -o BatchMode=yes -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" "df -h /"
+
+      - name: docker system prune -af
+        run: |
+          ssh -o BatchMode=yes -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" \
+            "docker system prune -af"
+
+      - name: Espacio en disco DESPUÉS
+        run: |
+          ssh -o BatchMode=yes -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" "df -h /"
