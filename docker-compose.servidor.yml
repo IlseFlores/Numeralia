@@ -1,0 +1,35 @@
+# =====================================================================
+#  Superposición: el servidor Ubuntu (junto al Validador y Ladrilleras)
+# =====================================================================
+#  Se aplica encima de docker-compose.yml. No hace falta escribir los
+#  dos -f: scripts/servidor-ubuntu.sh pone en .env
+#
+#      COMPOSE_FILE=docker-compose.yml:docker-compose.servidor.yml
+#
+#  y docker compose lo lee solo.
+#
+#  Qué cambia respecto del droplet (el despliegue por releases de
+#  .github/workflows/deploy.yml no se toca):
+#
+#   · La imagen se compila en el servidor desde el repositorio, no se
+#     baja de GHCR: el servidor no necesita sesión en el registry.
+#   · No se une a la red externa aire_jalisco_net (no existe aquí):
+#     usa su propia red y nginx del sistema la alcanza por el puerto.
+#   · Se publica solo en 127.0.0.1:8083 — nginx es la única entrada
+#     desde la red. Docker abre los puertos publicados por encima de
+#     UFW, así que con 0.0.0.0 quedaría expuesto sin HTTPS. El 8080,
+#     8081 y 8082 ya los usan el tablero de aire, el Validador y
+#     Ladrilleras. Otro puerto: NUMERALIA_PUBLICAR en .env.
+# =====================================================================
+
+services:
+  numeralia:
+    image: numeralia:servidor
+    pull_policy: build
+    networks: !override
+      default: {}
+    ports:
+      - '${NUMERALIA_PUBLICAR:-127.0.0.1:8083}:8050'
+
+networks:
+  aire_jalisco_net: !reset null
