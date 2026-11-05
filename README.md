@@ -159,6 +159,10 @@ proceso activo. El dashboard queda preparado para publicarse en
 `/reporte-diario/` a través del Nginx de Aire Jalisco; su puerto no se publica
 directamente en el servidor.
 
+> Para instalarlo en el **servidor Ubuntu** (junto al Validador y
+> Ladrilleras, compilando la imagen ahí y con nginx en `/reporte-diario/`),
+> ver **[INSTALACION-SERVIDOR.md](INSTALACION-SERVIDOR.md)**.
+
 ### Cada release se despliega sola
 
 Al publicar un release en GitHub, el workflow `deploy` corre los tests,
