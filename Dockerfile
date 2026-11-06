@@ -25,6 +25,13 @@ CMD ["python", "-m", "pytest", "-q"]
 
 FROM base AS runtime
 
+# Chromium para #notificacion: el reporte diario descarga los 3 PDF del
+# dashboard con un navegador headless (ver notificaciones/dashboard_pdf.py).
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
+RUN python -m playwright install --with-deps chromium \
+    && chmod -R a+rX "$PLAYWRIGHT_BROWSERS_PATH" \
+    && rm -rf /var/lib/apt/lists/*
+
 USER numeralia
 EXPOSE 8050
 CMD ["python", "-m", "numeralia"]

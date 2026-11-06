@@ -10,7 +10,9 @@ python -m numeralia.notificaciones.reporte_diario
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import tempfile
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -163,6 +165,72 @@ def generar_reporte_diario(config: Config, carpeta_temporal: Path) -> Path:
     return fusionar_pdfs(rutas, destino)
 
 
+def ruta_token_gmail(raiz: Path) -> Path:
+    """
+    Dónde está el token de Gmail/Drive.
+
+    Si el .env trae ``GMAIL_TOKEN_JSON`` (el contenido de token_gmail.json
+    en una sola línea), se escribe a un archivo temporal y se usa ese: así
+    el contenedor del dashboard no necesita montar el archivo. Si no, se usa
+    ``raiz/token_gmail.json`` como siempre.
+
+    Se reescribe en cada llamada a propósito: gmail.py guarda ahí el token
+    de acceso renovado, pero lo que vale es el refresh token del .env.
+    """
+    contenido = os.getenv('GMAIL_TOKEN_JSON', '').strip()
+    if not contenido:
+        return raiz / 'token_gmail.json'
+    try:
+        json.loads(contenido)
+    except ValueError as e:
+        raise ValueError(
+            "GMAIL_TOKEN_JSON en el .env no es un JSON válido; pega el "
+            "contenido de token_gmail.json en una sola línea.") from e
+    ruta = Path(tempfile.gettempdir()) / 'numeralia_token_gmail.json'
+    ruta.write_text(contenido, encoding='utf-8')
+    try:
+        ruta.chmod(0o600)
+    except OSError:
+        pass
+    return ruta
+
+
+def _fecha_larga(fecha: date) -> str:
+    return f"{fecha.day} de {_MESES[fecha.month]} de {fecha.year}"
+
+
+def enviar_reporte_diario_con_motivo(config: Config,
+                                     ruta_token_gmail: Path) -> tuple[Path | None, str]:
+    """
+    Igual que :func:`enviar_reporte_diario`, pero además devuelve un texto
+    para mostrarle a quien lo pidió (lo usa #notificacion en el dashboard):
+    si se mandó, o por qué no.
+    """
+    fecha_corte = _fecha_corte()
+    fecha = _fecha_larga(fecha_corte.date())
+    gc = autenticar()
+    spreadsheet = gc.open_by_url(config.url_destino)
+
+    if _ya_enviado(spreadsheet, fecha_corte.date()):
+        log.info("El reporte del %s ya se había enviado antes; no se manda "
+                 "de nuevo.", fecha_corte.date())
+        return None, (f"El reporte del {fecha} ya se había enviado; "
+                      "no se mandó de nuevo.")
+
+    if not datos_listos_para_enviar(config):
+        log.info("Los datos del %s todavía no están listos (o el dashboard "
+                 "no se ha actualizado); no se manda nada por ahora. "
+                 "Vuelve a intentarlo más tarde.", fecha_corte.date())
+        return None, (f"Los datos del {fecha} todavía no están en el "
+                      "dashboard; no se mandó nada. Corre #actualizar y "
+                      "vuelve a intentarlo.")
+
+    ruta_pdf = _generar_y_enviar(config, ruta_token_gmail, fecha_corte, spreadsheet)
+    total = len(config.destinatarios_reporte) + len(config.copia_reporte)
+    return ruta_pdf, (f"Reporte del {fecha} enviado a {total} "
+                      f"destinatario{'s' if total != 1 else ''}.")
+
+
 def enviar_reporte_diario(config: Config, ruta_token_gmail: Path) -> Path | None:
     """
     Genera el PDF combinado y lo manda por correo. Devuelve la ruta del PDF,
@@ -178,21 +246,13 @@ def enviar_reporte_diario(config: Config, ruta_token_gmail: Path) -> Path | None
     del día anterior, el mismo bug que ya pasó una vez con el envío
     automático.
     """
-    fecha_corte = _fecha_corte()
-    gc = autenticar()
-    spreadsheet = gc.open_by_url(config.url_destino)
+    ruta_pdf, _motivo = enviar_reporte_diario_con_motivo(config, ruta_token_gmail)
+    return ruta_pdf
 
-    if _ya_enviado(spreadsheet, fecha_corte.date()):
-        log.info("El reporte del %s ya se había enviado antes; no se manda "
-                 "de nuevo.", fecha_corte.date())
-        return None
 
-    if not datos_listos_para_enviar(config):
-        log.info("Los datos del %s todavía no están listos (o el dashboard "
-                 "no se ha actualizado); no se manda nada por ahora. "
-                 "Vuelve a intentarlo más tarde.", fecha_corte.date())
-        return None
-
+def _generar_y_enviar(config: Config, ruta_token_gmail: Path,
+                      fecha_corte: datetime, spreadsheet) -> Path:
+    """Arma el PDF, lo manda, marca la fecha y lo sube a Drive."""
     with tempfile.TemporaryDirectory(prefix='reporte_ca_') as carpeta_temporal:
         ruta_pdf = generar_reporte_diario(config, Path(carpeta_temporal))
 
@@ -230,7 +290,7 @@ if __name__ == '__main__':
     cargar_dotenv()
     _config = Config.desde_env()
     _raiz = Path(__file__).resolve().parents[3]
-    _ruta = enviar_reporte_diario(_config, _raiz / 'token_gmail.json')
+    _ruta = enviar_reporte_diario(_config, ruta_token_gmail(_raiz))
     if _ruta is None:
         print("No se mandó nada — revisa el mensaje de arriba para saber por qué "
               "(ya se había enviado, o los datos todavía no están listos).")

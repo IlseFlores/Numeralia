@@ -1,16 +1,18 @@
 /* ==========================================================================
- * #actualizar: vuelve a correr el pipeline de la numeralia desde la URL.
+ * Tareas desde la URL del dashboard (o escribiéndolas al final de la URL con
+ * la página ya abierta):
  *
- * Abrir  https://.../reporte-diario/#actualizar  (o escribir #actualizar al
- * final de la URL con la página ya abierta) le pide al servidor que corra el
- * pipeline completo. Mientras tanto se muestra un aviso; al terminar se quita
- * el #actualizar de la URL y se recarga la página con los datos nuevos.
+ *   #actualizar    vuelve a correr el pipeline de la numeralia; al terminar
+ *                  recarga la página con los datos nuevos.
+ *   #notificacion  manda el reporte diario por correo; al terminar dice si se
+ *                  mandó o por qué no (ya se había enviado, datos no listos).
  *
- * El lado del servidor está en src/numeralia/reporte/actualizacion.py.
+ * Mientras corren se muestra un aviso con barra de avance y al terminar se
+ * quita el #... de la URL. El lado del servidor está en
+ * src/numeralia/reporte/actualizacion.py.
  * ========================================================================== */
 
 (function () {
-    var HASH = '#actualizar';
     var CADA_MS = 2000;
     var corriendo = false;
 
@@ -101,8 +103,44 @@
         return Math.min(95, 100 * e.transcurrido_seg / e.duracion_estimada_seg);
     }
 
-    function esperar() {
-        fetch(base() + '_actualizar/estado', {cache: 'no-store'})
+    var NOMBRES = {actualizar: 'la actualización', notificacion: 'el envío del reporte'};
+
+    /* Al terminar cada tarea: #actualizar recarga con los datos nuevos;
+     * #notificacion deja el aviso con lo que respondió el servidor
+     * (enviado, ya se había enviado, datos aún no listos). */
+    var TAREAS = {
+        actualizar: {
+            corriendo: 'Actualizando la numeralia…',
+            iniciando: 'Iniciando la actualización de la numeralia…',
+            error: 'No se pudo actualizar la numeralia: ',
+            errorFin: '. El dashboard sigue con los datos anteriores.',
+            listo: function () {
+                mostrar('Numeralia actualizada. Recargando…', false, 100, '100%');
+                window.location.reload();
+            }
+        },
+        notificacion: {
+            corriendo: 'Mandando el reporte diario por correo…',
+            iniciando: 'Iniciando el envío del reporte diario…',
+            error: 'No se pudo mandar el reporte: ',
+            errorFin: '.',
+            listo: function (e) {
+                mostrar(e.mensaje || 'Listo.', false, 100, '');
+                cerrarLuego();
+            }
+        }
+    };
+
+    function cerrarLuego() {
+        setTimeout(function () {
+            var caja = document.getElementById('aviso-actualizar');
+            if (caja) { caja.remove(); }
+        }, 15000);
+    }
+
+    function esperar(tarea) {
+        var t = TAREAS[tarea];
+        fetch(base() + '_' + tarea + '/estado', {cache: 'no-store'})
             .then(function (r) { return r.json(); })
             .then(function (e) {
                 if (e.estado === 'corriendo') {
@@ -111,49 +149,56 @@
                         ? reloj(e.transcurrido_seg)
                         : Math.floor(p) + '% · ' + reloj(e.transcurrido_seg) +
                           ' de ~' + reloj(e.duracion_estimada_seg);
-                    mostrar('Actualizando la numeralia…', false, p, detalle);
-                    setTimeout(esperar, CADA_MS);
+                    mostrar(t.corriendo, false, p, detalle);
+                    setTimeout(function () { esperar(tarea); }, CADA_MS);
                 } else if (e.estado === 'listo') {
-                    mostrar('Numeralia actualizada. Recargando…', false, 100, '100%');
+                    corriendo = false;
                     quitarHash();
-                    window.location.reload();
+                    t.listo(e);
                 } else {
                     corriendo = false;
                     quitarHash();
-                    mostrar('No se pudo actualizar la numeralia: ' + (e.mensaje || e.estado) +
-                            '. El dashboard sigue con los datos anteriores.', true);
+                    mostrar(t.error + (e.mensaje || e.estado) + t.errorFin, true);
                 }
             })
             .catch(function () {
                 // Un corte momentáneo (o el servidor ocupado) no cancela la espera.
-                setTimeout(esperar, CADA_MS);
+                setTimeout(function () { esperar(tarea); }, CADA_MS);
             });
     }
 
-    function actualizar() {
-        if (window.location.hash !== HASH || corriendo) { return; }
+    function iniciar() {
+        var tarea = window.location.hash.slice(1);
+        if (!TAREAS[tarea] || corriendo) { return; }
         corriendo = true;
-        mostrar('Iniciando la actualización de la numeralia…');
-        fetch(base() + '_actualizar', {method: 'POST', cache: 'no-store'})
+        mostrar(TAREAS[tarea].iniciando);
+        fetch(base() + '_' + tarea, {method: 'POST', cache: 'no-store'})
             .then(function (r) {
-                if (r.status === 202 || r.status === 409) {
-                    // 409 = ya había una corriendo (otra pestaña): se espera a esa.
-                    esperar();
-                } else {
-                    throw new Error('HTTP ' + r.status);
-                }
+                if (r.status === 202) { return esperar(tarea); }
+                if (r.status !== 409) { throw new Error('HTTP ' + r.status); }
+                return r.json().then(function (e) {
+                    if (e.ocupado_por === tarea) {
+                        // La misma tarea ya corría (otra pestaña): se espera a esa.
+                        esperar(tarea);
+                    } else {
+                        corriendo = false;
+                        quitarHash();
+                        mostrar('Ahora mismo está en curso ' + (NOMBRES[e.ocupado_por] || 'otra tarea') +
+                                '. Vuelve a intentarlo cuando termine.', true);
+                    }
+                });
             })
             .catch(function (err) {
                 corriendo = false;
                 quitarHash();
-                mostrar('No se pudo iniciar la actualización (' + err.message + ').', true);
+                mostrar(TAREAS[tarea].error + err.message + '.', true);
             });
     }
 
-    window.addEventListener('hashchange', actualizar);
+    window.addEventListener('hashchange', iniciar);
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', actualizar);
+        document.addEventListener('DOMContentLoaded', iniciar);
     } else {
-        actualizar();
+        iniciar();
     }
 })();
