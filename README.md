@@ -128,6 +128,13 @@ dashboard con los datos ya frescos en:
 http://127.0.0.1:8050
 ```
 
+Para volver a correr el pipeline **sin reiniciar**, abre el dashboard con
+`#actualizar` al final de la URL (por ejemplo
+`https://<servidor>/reporte-diario/#actualizar`). Aparece un aviso mientras
+corre —tarda unos minutos y el dashboard sigue con los datos anteriores
+mientras tanto—; al terminar la página se recarga sola con los datos nuevos.
+Si ya hay una actualización en curso, se espera a esa en vez de lanzar otra.
+
 Corre desatendido (sin preguntar nada por consola) — el año se toma del
 sistema o del argumento, así que también puede lanzarse desde una tarea
 programada.
