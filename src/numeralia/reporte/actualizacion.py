@@ -1,23 +1,28 @@
 """
-Actualización de la numeralia a pedido, sin reiniciar el contenedor.
+Tareas a pedido desde la URL del dashboard, sin reiniciar el contenedor.
 
-El pipeline corre una vez al arrancar y el dashboard se queda con esa foto.
-Para refrescarla basta con abrir la página con ``#actualizar`` al final:
+    https://.../reporte-diario/#actualizar    -> vuelve a correr el pipeline
+    https://.../reporte-diario/#notificacion  -> manda el reporte diario por
+                                                 correo (lo mismo que
+                                                 python -m numeralia.notificaciones.reporte_diario)
 
-    https://.../reporte-diario/#actualizar
+El JavaScript de ``assets/actualizar.js`` ve el ``#...``, pide aquí que se
+corra la tarea y muestra un aviso con barra de avance hasta que termina.
 
-El JavaScript de ``assets/dashboard.js`` ve el ``#actualizar``, pide aquí
-que se corra el pipeline y espera a que termine para recargar la página.
+Cómo se cambia la app en caliente (#actualizar): el servidor no sirve la app
+de Dash directamente sino este ``Despachador``, que le pasa cada petición a
+la app vigente. Al terminar el pipeline se arma una app nueva con los datos
+frescos y se reemplaza de un golpe; las peticiones en curso terminan con la
+anterior. Mientras el pipeline corre, el dashboard sigue con los datos de
+antes.
 
-Cómo se cambia la app en caliente: el servidor no sirve la app de Dash
-directamente sino este ``Despachador``, que le pasa cada petición a la app
-vigente. Al terminar el pipeline se arma una app nueva con los datos frescos
-y se reemplaza de un golpe; las peticiones en curso terminan con la anterior.
-Mientras el pipeline corre, el dashboard sigue sirviendo los datos de antes.
+Solo corre una tarea a la vez: el pipeline escribe las hojas que la
+notificación revisa, y la notificación fotografía el dashboard que el
+pipeline está por reemplazar.
 
-Rutas (bajo la ruta base del dashboard):
-    POST  _actualizar          -> arranca el pipeline (si no está corriendo ya)
-    GET   _actualizar/estado   -> {'estado': ..., 'mensaje': ..., ...}
+Rutas (bajo la ruta base del dashboard), con <tarea> = actualizar | notificacion:
+    POST  _<tarea>          -> la arranca (409 si ya hay una corriendo)
+    GET   _<tarea>/estado   -> {'estado': ..., 'mensaje': ..., ...}
 """
 
 from __future__ import annotations
@@ -27,7 +32,7 @@ import threading
 import time
 import traceback
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 from werkzeug.wrappers import Request, Response
 
@@ -36,99 +41,132 @@ CORRIENDO = 'corriendo'
 LISTO = 'listo'
 ERROR = 'error'
 
+ACTUALIZAR = 'actualizar'
+NOTIFICACION = 'notificacion'
 
-class Despachador:
-    """
-    Aplicación WSGI que delega en la app de Dash vigente y atiende las rutas
-    de actualización.
 
-    ``reconstruir`` corre el pipeline y devuelve la app nueva de Dash (o
-    cualquier objeto con ``.server`` WSGI). Se ejecuta en un hilo aparte.
-    """
-
-    def __init__(self, app_inicial: Any, reconstruir: Callable[[], Any],
-                 ruta_base: str = '/',
-                 duracion_estimada: Optional[float] = None) -> None:
-        """
-        ``duracion_estimada`` (segundos) es lo que tardó la corrida del
-        arranque; con ella la página dibuja una barra de avance aproximada.
-        Cada actualización exitosa la reemplaza por su propia duración.
-        """
-        self._wsgi = app_inicial.server
-        self._reconstruir = reconstruir
-        base = ruta_base if ruta_base.endswith('/') else ruta_base + '/'
-        self._ruta = base + '_actualizar'
-        self._candado = threading.Lock()
-        self._estado = {
+class _Tarea:
+    def __init__(self, nombre: str, funcion: Callable[[], Any],
+                 duracion_estimada: Optional[float]) -> None:
+        self.nombre = nombre
+        self.funcion = funcion
+        self.t0: Optional[float] = None
+        self.estado: Dict[str, Any] = {
+            'tarea': nombre,
             'estado': INACTIVO,
             'mensaje': '',
             'inicio': None,
             'fin': None,
             'duracion_estimada_seg': duracion_estimada,
         }
-        self._t0: Optional[float] = None
+
+
+class Despachador:
+    """
+    Aplicación WSGI que delega en la app de Dash vigente y atiende las rutas
+    de las tareas.
+
+    ``reconstruir`` corre el pipeline y devuelve la app nueva de Dash (o
+    cualquier objeto con ``.server`` WSGI).
+
+    ``notificar`` (opcional) manda el reporte y devuelve el texto que se le
+    muestra a quien lo pidió: "enviado", "ya se había enviado hoy"... Sin
+    ella, ``#notificacion`` responde 404.
+
+    ``duracion_estimada`` (segundos) es lo que tardó la corrida del
+    arranque; con ella la página dibuja una barra de avance aproximada. Cada
+    corrida exitosa de una tarea deja su propia duración como la siguiente
+    estimación.
+    """
+
+    def __init__(self, app_inicial: Any, reconstruir: Callable[[], Any],
+                 ruta_base: str = '/',
+                 duracion_estimada: Optional[float] = None,
+                 notificar: Optional[Callable[[], str]] = None) -> None:
+        self._wsgi = app_inicial.server
+        self._base = ruta_base if ruta_base.endswith('/') else ruta_base + '/'
+        self._candado = threading.Lock()
+        self._tareas: Dict[str, _Tarea] = {
+            ACTUALIZAR: _Tarea(ACTUALIZAR, reconstruir, duracion_estimada),
+        }
+        if notificar is not None:
+            self._tareas[NOTIFICACION] = _Tarea(NOTIFICACION, notificar, None)
 
     # ── Estado ────────────────────────────────────────────────────────────
-    def estado(self) -> dict:
+    def estado(self, tarea: str = ACTUALIZAR) -> dict:
         with self._candado:
-            datos = dict(self._estado)
+            t = self._tareas[tarea]
+            datos = dict(t.estado)
             # El avance se mide con el reloj del servidor: el del navegador
             # puede ir desfasado y la barra saltaría.
             datos['transcurrido_seg'] = (
-                round(time.monotonic() - self._t0, 1)
-                if datos['estado'] == CORRIENDO and self._t0 is not None
+                round(time.monotonic() - t.t0, 1)
+                if datos['estado'] == CORRIENDO and t.t0 is not None
                 else None)
+            ocupada = self._ocupada()
+            datos['ocupado_por'] = ocupada.nombre if ocupada else None
             return datos
 
-    def _poner_estado(self, **cambios) -> None:
-        with self._candado:
-            self._estado.update(cambios)
+    def _ocupada(self) -> Optional[_Tarea]:
+        """La tarea que está corriendo, si hay. Llamar con el candado tomado."""
+        return next((t for t in self._tareas.values()
+                     if t.estado['estado'] == CORRIENDO), None)
 
-    # ── Actualización ─────────────────────────────────────────────────────
-    def iniciar(self) -> bool:
+    def _terminar(self, t: _Tarea, **cambios) -> None:
+        with self._candado:
+            t.estado.update(fin=_ahora(), **cambios)
+
+    # ── Correr ────────────────────────────────────────────────────────────
+    def iniciar(self, tarea: str = ACTUALIZAR) -> bool:
         """
-        Arranca el pipeline en segundo plano. Devuelve False si ya había uno
-        corriendo: dos a la vez escribirían las mismas hojas de Sheets.
+        Arranca la tarea en segundo plano. Devuelve False si ya había una
+        corriendo (esa misma u otra).
         """
         with self._candado:
-            if self._estado['estado'] == CORRIENDO:
+            if self._ocupada() is not None:
                 return False
-            self._estado.update(estado=CORRIENDO, mensaje='',
-                                inicio=_ahora(), fin=None)
-            self._t0 = time.monotonic()
-        threading.Thread(target=self._correr, name='numeralia-actualizar',
-                         daemon=True).start()
+            t = self._tareas[tarea]
+            t.estado.update(estado=CORRIENDO, mensaje='', inicio=_ahora(), fin=None)
+            t.t0 = time.monotonic()
+        threading.Thread(target=self._correr, args=(t,),
+                         name=f'numeralia-{tarea}', daemon=True).start()
         return True
 
-    def _correr(self) -> None:
-        print("\n========== #actualizar: corriendo el pipeline ==========")
+    def _correr(self, t: _Tarea) -> None:
+        print(f"\n========== #{t.nombre}: inicia ==========")
         try:
-            app_nueva = self._reconstruir()
+            resultado = t.funcion()
         except Exception as e:  # noqa: BLE001 — cualquier falla se reporta a la página
             traceback.print_exc()
-            self._poner_estado(estado=ERROR, mensaje=str(e) or type(e).__name__,
-                               fin=_ahora())
+            self._terminar(t, estado=ERROR, mensaje=str(e) or type(e).__name__)
             return
-        # Asignar el atributo es atómico: la siguiente petición ya va a la nueva.
-        self._wsgi = app_nueva.server
-        self._poner_estado(estado=LISTO, mensaje='', fin=_ahora(),
-                           duracion_estimada_seg=round(time.monotonic() - self._t0, 1))
-        print("========== #actualizar: dashboard actualizado ==========\n")
+        duracion = round(time.monotonic() - t.t0, 1)
+        if t.nombre == ACTUALIZAR:
+            # Asignar el atributo es atómico: la siguiente petición ya va a la nueva.
+            self._wsgi = resultado.server
+            mensaje = ''
+        else:
+            mensaje = str(resultado or '')
+        self._terminar(t, estado=LISTO, mensaje=mensaje, duracion_estimada_seg=duracion)
+        print(f"========== #{t.nombre}: terminó {mensaje} ==========\n")
 
     # ── WSGI ──────────────────────────────────────────────────────────────
     def __call__(self, environ, start_response):
         ruta = environ.get('PATH_INFO', '')
-        if ruta == self._ruta or ruta.startswith(self._ruta + '/'):
-            return self._atender(Request(environ))(environ, start_response)
+        for nombre in self._tareas:
+            propia = self._base + '_' + nombre
+            if ruta == propia or ruta.startswith(propia + '/'):
+                return self._atender(Request(environ), nombre, propia)(
+                    environ, start_response)
         return self._wsgi(environ, start_response)
 
-    def _atender(self, peticion: Request) -> Response:
-        if peticion.path == self._ruta and peticion.method == 'POST':
-            iniciado = self.iniciar()
-            return _json({**self.estado(), 'iniciado': iniciado},
+    def _atender(self, peticion: Request, tarea: str, ruta: str) -> Response:
+        if peticion.path == ruta and peticion.method == 'POST':
+            iniciado = self.iniciar(tarea)
+            return _json({**self.estado(tarea), 'iniciado': iniciado},
                          202 if iniciado else 409)
-        if peticion.path == self._ruta + '/estado' and peticion.method == 'GET':
-            return _json(self.estado())
+        if peticion.path == ruta + '/estado' and peticion.method == 'GET':
+            return _json(self.estado(tarea))
         return Response('No encontrado', status=404)
 
 

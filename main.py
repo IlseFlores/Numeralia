@@ -630,11 +630,22 @@ def run_full_pipeline(anio_actual: Optional[int] = None, lanzar_dashboard: bool 
                 datos = _leer_datos_de_sheets(gc_nuevo, sh, acum)
                 return build_dash_app(gc_nuevo, sh, acum, datos=datos)
 
+            def _notificar():
+                # Lo mismo que python -m numeralia.notificaciones.reporte_diario,
+                # con sus dos candados: no reenvía y no manda datos viejos.
+                from numeralia.notificaciones.reporte_diario import (
+                    enviar_reporte_diario_con_motivo, ruta_token_gmail)
+                _ruta, motivo = enviar_reporte_diario_con_motivo(
+                    Config.desde_env(), ruta_token_gmail(Path(__file__).resolve().parent))
+                return motivo
+
             despachador = Despachador(app, _reconstruir,
                                       ruta_base=CONFIG.ruta_base_dashboard,
-                                      duracion_estimada=duracion_pipeline)
+                                      duracion_estimada=duracion_pipeline,
+                                      notificar=_notificar)
             print(f"\nDashboard en http://127.0.0.1:{puerto}  (Ctrl+C para detener)")
             print("Para actualizar la numeralia sin reiniciar: abre la página con #actualizar al final.")
+            print("Para mandar el reporte diario por correo: abre la página con #notificacion al final.")
             servir(despachador, '0.0.0.0', puerto)
 
     return acumulado

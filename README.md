@@ -135,6 +135,14 @@ corre —tarda unos minutos y el dashboard sigue con los datos anteriores
 mientras tanto—; al terminar la página se recarga sola con los datos nuevos.
 Si ya hay una actualización en curso, se espera a esa en vez de lanzar otra.
 
+Con `#notificacion` al final (`https://<servidor>/reporte-diario/#notificacion`)
+se manda el reporte diario por correo, igual que
+`python -m numeralia.notificaciones.reporte_diario`: no reenvía si ese día ya
+se mandó, y no manda nada si el dashboard todavía no tiene los datos de ayer.
+Al terminar, el aviso dice cuál de las tres cosas pasó. Necesita
+`GMAIL_TOKEN_JSON` en el `.env` (ver `.env.example`). Solo corre una tarea a
+la vez: mientras corre `#actualizar` no se puede mandar y viceversa.
+
 Corre desatendido (sin preguntar nada por consola) — el año se toma del
 sistema o del argumento, así que también puede lanzarse desde una tarea
 programada.
