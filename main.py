@@ -1,6 +1,7 @@
 
 import os
 import re
+import time
 import warnings
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -550,18 +551,11 @@ URL_RESUMEN_MENSUAL = CONFIG.urls.get('resumen_mensual') or \
     "https://docs.google.com/spreadsheets/d/1cAICszRtOI1j9ZDDyqhnekEEUXDNCJXJQYWU-xddzMs/edit"
 
 
-def run_full_pipeline(anio_actual: Optional[int] = None, lanzar_dashboard: bool = True,
-                       puerto: int = 8050,
-                       exportar_json: Optional[str] = None) -> pd.DataFrame:
+def _procesar(gc, anio_actual: int):
     """
-    Corre TODO el pipeline de punta a punta con una sola llamada:
-      1) Cruda -> validación -> IAS/NOM -> Procesada
-      2) Procesada + Analítica -> acumulado actualizado en Analítica
-      3) Episodios (2025 vs 2026, mismo periodo) + IMECA máximo
-      4) Alertas / Emergencias (2025 vs 2026)
-      5) (opcional) Levanta el dashboard con el acumulado fresco
+    Pasos 1-3 del pipeline: escriben en Sheets y devuelven
+    (spreadsheet_destino, acumulado). Es lo que se repite con #actualizar.
     """
-    gc = autenticar()
     spreadsheet_destino = gc.open_by_url(URL_DESTINO)
 
     print("\n========== 1) NUMERALIA (Cruda -> Procesada -> Analítica) ==========")
@@ -578,8 +572,6 @@ def run_full_pipeline(anio_actual: Optional[int] = None, lanzar_dashboard: bool 
     dfd_all = ejecutar_pipeline_ias(archivo_bd, spreadsheet=spreadsheet_destino,
                                      hoja_procesada="Procesada")
 
-    if anio_actual is None:
-        anio_actual = int(input("Año actual: "))
     acumulado = actualizar_acumulado(spreadsheet_destino, anio_actual, dfd_all=dfd_all)
 
     print("\n========== 2) EPISODIOS + IMECA MÁXIMO ==========")
@@ -589,6 +581,30 @@ def run_full_pipeline(anio_actual: Optional[int] = None, lanzar_dashboard: bool 
     run_alertas(sh_2025, sh_2026, spreadsheet_destino)
 
     print("\n Pipeline completo terminado.")
+    return spreadsheet_destino, acumulado
+
+
+def run_full_pipeline(anio_actual: Optional[int] = None, lanzar_dashboard: bool = True,
+                       puerto: int = 8050,
+                       exportar_json: Optional[str] = None) -> pd.DataFrame:
+    """
+    Corre TODO el pipeline de punta a punta con una sola llamada:
+      1) Cruda -> validación -> IAS/NOM -> Procesada
+      2) Procesada + Analítica -> acumulado actualizado en Analítica
+      3) Episodios (2025 vs 2026, mismo periodo) + IMECA máximo
+      4) Alertas / Emergencias (2025 vs 2026)
+      5) (opcional) Levanta el dashboard con el acumulado fresco
+
+    Con el dashboard levantado, abrir la página con #actualizar al final
+    vuelve a correr los pasos 1-4 y refresca el dashboard sin reiniciar.
+    """
+    gc = autenticar()
+
+    if anio_actual is None:
+        anio_actual = int(input("Año actual: "))
+    t0_pipeline = time.monotonic()
+    spreadsheet_destino, acumulado = _procesar(gc, anio_actual)
+    duracion_pipeline = time.monotonic() - t0_pipeline
 
     # Los datos del dashboard se leen una sola vez y se reutilizan para las
     # dos salidas: el JSON que consume el servidor y el dashboard local.
@@ -605,8 +621,21 @@ def run_full_pipeline(anio_actual: Optional[int] = None, lanzar_dashboard: bool 
             # jupyter_mode solo existe dentro de un notebook; fuera truena.
             app.run(jupyter_mode='external', debug=False)
         else:
+            from numeralia.reporte.actualizacion import Despachador, servir
+
+            def _reconstruir():
+                # Se reautentica por si el token de la primera corrida venció.
+                gc_nuevo = autenticar()
+                sh, acum = _procesar(gc_nuevo, anio_actual)
+                datos = _leer_datos_de_sheets(gc_nuevo, sh, acum)
+                return build_dash_app(gc_nuevo, sh, acum, datos=datos)
+
+            despachador = Despachador(app, _reconstruir,
+                                      ruta_base=CONFIG.ruta_base_dashboard,
+                                      duracion_estimada=duracion_pipeline)
             print(f"\nDashboard en http://127.0.0.1:{puerto}  (Ctrl+C para detener)")
-            app.run(host='0.0.0.0', port=puerto, debug=False)
+            print("Para actualizar la numeralia sin reiniciar: abre la página con #actualizar al final.")
+            servir(despachador, '0.0.0.0', puerto)
 
     return acumulado
 
